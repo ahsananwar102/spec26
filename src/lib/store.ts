@@ -1,0 +1,882 @@
+import { useState, useEffect } from 'react';
+import { User, Role, Competition, Registration, ContactMessage, RegStatus, EventSettings, RegistrationPhase, CategoryItem } from '../types';
+import { INITIAL_USERS, INITIAL_COMPETITIONS, INITIAL_REGISTRATIONS, INITIAL_CATEGORIES } from './seedData';
+import { supabase, mapSupabaseUserToAppUser, signInWithGoogleOAuth, isSupabaseConfigured } from './supabase';
+
+const STORAGE_KEYS = {
+  USERS: 'spec26_users',
+  COMPETITIONS: 'spec26_competitions',
+  REGISTRATIONS: 'spec26_registrations',
+  CURRENT_USER: 'spec26_current_user',
+  CONTACT_MSGS: 'spec26_contact_messages',
+  EVENT_SETTINGS: 'spec26_event_settings',
+  PASSWORD_RESETS: 'spec26_password_resets',
+  CATEGORIES: 'spec26_categories'
+};
+
+export interface PasswordResetItem {
+  token: string;
+  email: string;
+  expiresAt: number;
+  createdAt: string;
+}
+
+// Default event configuration
+const DEFAULT_EVENT_SETTINGS: EventSettings = {
+  registrationPhase: 'OPEN',
+  eventDate: '2026-04-15',
+  registrationStartDate: '2026-03-01',
+  registrationEndDate: '2026-04-10',
+  competitionDates: '15\u201316 April 2026',
+  updatedAt: new Date().toISOString()
+};
+
+// Initialize LocalStorage with seed data if not present
+function initializeStore() {
+  if (typeof window === 'undefined') return;
+
+  if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.COMPETITIONS)) {
+    localStorage.setItem(STORAGE_KEYS.COMPETITIONS, JSON.stringify(INITIAL_COMPETITIONS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.REGISTRATIONS)) {
+    localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(INITIAL_REGISTRATIONS));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.CATEGORIES)) {
+    localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.CURRENT_USER)) {
+    // Start logged out — users must authenticate first
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(null));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.CONTACT_MSGS)) {
+    localStorage.setItem(STORAGE_KEYS.CONTACT_MSGS, JSON.stringify([]));
+  }
+  if (!localStorage.getItem(STORAGE_KEYS.EVENT_SETTINGS)) {
+    localStorage.setItem(STORAGE_KEYS.EVENT_SETTINGS, JSON.stringify(DEFAULT_EVENT_SETTINGS));
+  }
+}
+
+initializeStore();
+
+export function getStoredUsers(): User[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.USERS);
+    return raw ? JSON.parse(raw) : INITIAL_USERS;
+  } catch {
+    return INITIAL_USERS;
+  }
+}
+
+export function getStoredCompetitions(): Competition[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMPETITIONS);
+    return raw ? JSON.parse(raw) : INITIAL_COMPETITIONS;
+  } catch {
+    return INITIAL_COMPETITIONS;
+  }
+}
+
+export function getStoredRegistrations(): Registration[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.REGISTRATIONS);
+    return raw ? JSON.parse(raw) : INITIAL_REGISTRATIONS;
+  } catch {
+    return INITIAL_REGISTRATIONS;
+  }
+}
+
+export function getStoredCurrentUser(): User | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveCurrentUser(user: User | null) {
+  if (user) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+  }
+  window.dispatchEvent(new Event('spec_auth_change'));
+}
+
+export function saveUsers(users: User[]) {
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  window.dispatchEvent(new Event('spec_users_change'));
+}
+
+export function saveCompetitions(comps: Competition[]) {
+  localStorage.setItem(STORAGE_KEYS.COMPETITIONS, JSON.stringify(comps));
+  window.dispatchEvent(new Event('spec_competitions_change'));
+}
+
+export function saveRegistrations(regs: Registration[]) {
+  localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(regs));
+  window.dispatchEvent(new Event('spec_registrations_change'));
+}
+
+export function getStoredCategories(): CategoryItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
+    return raw ? JSON.parse(raw) : INITIAL_CATEGORIES;
+  } catch {
+    return INITIAL_CATEGORIES;
+  }
+}
+
+export function saveCategories(cats: CategoryItem[]) {
+  localStorage.setItem(STORAGE_KEYS.CATEGORIES, JSON.stringify(cats));
+  window.dispatchEvent(new Event('spec_categories_change'));
+}
+
+export function getStoredEventSettings(): EventSettings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.EVENT_SETTINGS);
+    return raw ? JSON.parse(raw) : DEFAULT_EVENT_SETTINGS;
+  } catch {
+    return DEFAULT_EVENT_SETTINGS;
+  }
+}
+
+export function saveEventSettings(settings: EventSettings) {
+  localStorage.setItem(STORAGE_KEYS.EVENT_SETTINGS, JSON.stringify(settings));
+  window.dispatchEvent(new Event('spec_event_settings_change'));
+}
+
+export function useEventSettings() {
+  const [eventSettings, setEventSettings] = useState<EventSettings>(getStoredEventSettings);
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setEventSettings(getStoredEventSettings());
+    };
+    window.addEventListener('spec_event_settings_change', handleSettingsChange);
+    return () => window.removeEventListener('spec_event_settings_change', handleSettingsChange);
+  }, []);
+
+  const updateEventSettings = (updates: Partial<EventSettings>) => {
+    const current = getStoredEventSettings();
+    const updated: EventSettings = {
+      ...current,
+      ...updates,
+      updatedAt: new Date().toISOString()
+    };
+    saveEventSettings(updated);
+  };
+
+  const setRegistrationPhase = (phase: RegistrationPhase) => {
+    updateEventSettings({ registrationPhase: phase });
+  };
+
+  return { eventSettings, updateEventSettings, setRegistrationPhase };
+}
+
+export function formatDisplayDate(dateStr?: string): string {
+  if (!dateStr) return 'Date to be announced';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+export function saveContactMessage(msg: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CONTACT_MSGS);
+    const msgs: ContactMessage[] = raw ? JSON.parse(raw) : [];
+    const newMsg: ContactMessage = {
+      ...msg,
+      id: 'msg-' + Date.now(),
+      createdAt: new Date().toISOString(),
+      status: 'NEW'
+    };
+    msgs.unshift(newMsg);
+    localStorage.setItem(STORAGE_KEYS.CONTACT_MSGS, JSON.stringify(msgs));
+    return newMsg;
+  } catch {
+    return null;
+  }
+}
+
+// React Hooks for state synchronization across components
+export function useAuth() {
+  const [currentUser, setCurrentUser] = useState<User | null>(getStoredCurrentUser);
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCurrentUser(getStoredCurrentUser());
+    };
+    window.addEventListener('spec_auth_change', handleAuthChange);
+
+    // Supabase Auth listener
+    let authListenerSubscription: { unsubscribe: () => void } | null = null;
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          const appUser = mapSupabaseUserToAppUser(session.user);
+          saveCurrentUser(appUser);
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') {
+          if (typeof window !== 'undefined') {
+            window.location.hash = 'reset-password';
+          }
+        }
+        if (session?.user) {
+          const appUser = mapSupabaseUserToAppUser(session.user);
+          saveCurrentUser(appUser);
+        }
+      });
+      authListenerSubscription = subscription;
+    }
+
+    return () => {
+      window.removeEventListener('spec_auth_change', handleAuthChange);
+      authListenerSubscription?.unsubscribe();
+    };
+  }, []);
+
+  const loginWithGoogle = async (): Promise<{ success: boolean; isMock?: boolean; error?: string }> => {
+    const result = await signInWithGoogleOAuth();
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    if (result.url) {
+      window.location.href = result.url;
+      return { success: true };
+    }
+    return { success: true, isMock: result.isMock };
+  };
+
+  const login = (email: string, password?: string): { success: boolean; error?: string; user?: User } => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = (password || '').trim();
+
+    if (!cleanEmail) {
+      return { success: false, error: 'Email address is required.' };
+    }
+
+    const users = getStoredUsers();
+    const found = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+
+    if (found) {
+      if (found.role === 'ADMIN') {
+        const expectedPwd = found.password || 'admin123';
+        if (cleanPassword !== expectedPwd) {
+          return { success: false, error: 'Incorrect administrator password.' };
+        }
+      } else if (found.password && cleanPassword && found.password !== cleanPassword) {
+        return { success: false, error: 'Incorrect password. Please verify your credentials.' };
+      }
+      saveCurrentUser(found);
+      return { success: true, user: found };
+    }
+
+    // Check default admin fallback
+    if (cleanEmail === 'admin@neduet.edu.pk') {
+      if (cleanPassword === 'admin123') {
+        const adminUser: User = {
+          ...INITIAL_USERS[0],
+          password: 'admin123'
+        };
+        const updatedUsers = [...users, adminUser];
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+        saveCurrentUser(adminUser);
+        return { success: true, user: adminUser };
+      } else {
+        return { success: false, error: 'Incorrect administrator password.' };
+      }
+    }
+
+    return { success: false, error: 'Account not found. Please check your email or create an account.' };
+  };
+
+  const signup = (data: {
+    name: string;
+    email: string;
+    password?: string;
+    university?: string;
+    department?: string;
+    studentId?: string;
+    phoneNumber?: string;
+  }): { success: boolean; error?: string; user?: User } => {
+    const cleanEmail = data.email.toLowerCase().trim();
+    if (!cleanEmail) {
+      return { success: false, error: 'Email address is required.' };
+    }
+    if (!data.name?.trim()) {
+      return { success: false, error: 'Full name is required.' };
+    }
+
+    const users = getStoredUsers();
+    const existing = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    if (existing) {
+      return { success: false, error: 'An account with this email address already exists. Please log in.' };
+    }
+
+    const newUser: User = {
+      id: 'user-' + Date.now(),
+      name: data.name.trim(),
+      email: cleanEmail,
+      password: data.password?.trim() || 'user123',
+      role: 'USER',
+      university: data.university || 'NED University of Engineering & Technology',
+      department: data.department || 'Electronic Engineering',
+      studentId: data.studentId || 'ES-' + Math.floor(100 + Math.random() * 900) + '/2023',
+      phoneNumber: data.phoneNumber || '+92 300 1234567',
+      createdAt: new Date().toISOString()
+    };
+    const updatedUsers = [...users, newUser];
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+    saveCurrentUser(newUser);
+    return { success: true, user: newUser };
+  };
+
+  const loginOrSignupGoogleUser = (userData: {
+    name: string;
+    email: string;
+    university?: string;
+    department?: string;
+    studentId?: string;
+    phoneNumber?: string;
+  }): { success: boolean; user: User } => {
+    const cleanEmail = userData.email.toLowerCase().trim();
+    const users = getStoredUsers();
+    const existing = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    if (existing) {
+      saveCurrentUser(existing);
+      return { success: true, user: existing };
+    }
+    const newUser: User = {
+      id: 'user-' + Date.now(),
+      name: userData.name.trim(),
+      email: cleanEmail,
+      role: 'USER',
+      university: userData.university || 'NED University of Engineering & Technology',
+      department: userData.department || 'Electronic Engineering',
+      studentId: userData.studentId || 'STU-' + Math.floor(1000 + Math.random() * 9000),
+      phoneNumber: userData.phoneNumber || '+92 300 1234567',
+      createdAt: new Date().toISOString()
+    };
+    const updatedUsers = [...users, newUser];
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+    saveCurrentUser(newUser);
+    return { success: true, user: newUser };
+  };
+
+  const logout = () => {
+    if (supabase) {
+      supabase.auth.signOut().catch(() => {});
+    }
+    saveCurrentUser(null);
+  };
+
+  const switchRole = (role: 'USER' | 'ADMIN') => {
+    if (!currentUser) {
+      const targetUser = INITIAL_USERS.find(u => u.role === role) || INITIAL_USERS[0];
+      saveCurrentUser(targetUser);
+    } else {
+      const updated = { ...currentUser, role };
+      saveCurrentUser(updated);
+    }
+  };
+
+  const requestPasswordReset = async (email: string): Promise<{
+    success: boolean;
+    error?: string;
+    resetLink?: string;
+    isSupabase?: boolean;
+  }> => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) {
+      return { success: false, error: 'Please enter your account email address.' };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanEmail)) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    const users = getStoredUsers();
+    const userFound = users.some(u => u.email.toLowerCase().trim() === cleanEmail) || cleanEmail === 'admin@neduet.edu.pk';
+
+    let sentViaSupabase = false;
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const redirectUrl = `${window.location.origin}/#reset-password`;
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: redirectUrl,
+        });
+        if (!error) {
+          sentViaSupabase = true;
+        } else {
+          console.warn('Supabase resetPasswordForEmail notice:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('Supabase password reset call failed:', err);
+      }
+    }
+
+    if (!userFound && !sentViaSupabase && !isSupabaseConfigured) {
+      return {
+        success: false,
+        error: 'No registered account found with this email address. Please check spelling or create an account.'
+      };
+    }
+
+    // Generate local recovery token for instant verification & demo/standalone testing
+    const token = 'rst_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+    const existingRaw = localStorage.getItem(STORAGE_KEYS.PASSWORD_RESETS);
+    const list: PasswordResetItem[] = existingRaw ? JSON.parse(existingRaw) : [];
+    const now = Date.now();
+    const active = list.filter(item => item.expiresAt > now && item.email !== cleanEmail);
+    active.push({
+      token,
+      email: cleanEmail,
+      expiresAt: now + 3600 * 1000, // 1 hour validity
+      createdAt: new Date().toISOString()
+    });
+    localStorage.setItem(STORAGE_KEYS.PASSWORD_RESETS, JSON.stringify(active));
+
+    const resetLink = `${window.location.origin}/#reset-password?email=${encodeURIComponent(cleanEmail)}&token=${token}`;
+
+    return {
+      success: true,
+      resetLink,
+      isSupabase: sentViaSupabase
+    };
+  };
+
+  const verifyResetToken = (email: string, token: string): boolean => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanToken = token.trim();
+    if (!cleanEmail || !cleanToken) return false;
+
+    const existingRaw = localStorage.getItem(STORAGE_KEYS.PASSWORD_RESETS);
+    if (!existingRaw) return false;
+    try {
+      const list: PasswordResetItem[] = JSON.parse(existingRaw);
+      const now = Date.now();
+      return list.some(item => item.email === cleanEmail && item.token === cleanToken && item.expiresAt > now);
+    } catch {
+      return false;
+    }
+  };
+
+  const completePasswordReset = async (
+    email: string,
+    newPassword: string,
+    token?: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = newPassword.trim();
+
+    if (!cleanPassword || cleanPassword.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters in length.' };
+    }
+
+    // If token is provided, verify it (unless active Supabase session)
+    if (token) {
+      const isValid = verifyResetToken(cleanEmail, token);
+      if (!isValid) {
+        const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+        if (!session) {
+          return { success: false, error: 'This password reset link is invalid or has expired. Please request a new link.' };
+        }
+      }
+    }
+
+    // Update via Supabase if configured & active
+    if (supabase) {
+      try {
+        const { error } = await supabase.auth.updateUser({ password: cleanPassword });
+        if (error) {
+          console.warn('Supabase updateUser password notice:', error.message);
+        }
+      } catch (err: any) {
+        console.warn('Supabase password update error:', err);
+      }
+    }
+
+    // Update in local users store
+    const list = getStoredUsers();
+    let updated: User[];
+    const exists = list.some(u => u.email.toLowerCase().trim() === cleanEmail);
+
+    if (exists) {
+      updated = list.map(u => u.email.toLowerCase().trim() === cleanEmail ? { ...u, password: cleanPassword } : u);
+    } else if (cleanEmail === 'admin@neduet.edu.pk') {
+      const defaultAdmin: User = {
+        ...INITIAL_USERS[0],
+        password: cleanPassword
+      };
+      updated = [...list, defaultAdmin];
+    } else {
+      updated = list;
+    }
+    saveUsers(updated);
+
+    // Update current session if the same user is logged in
+    const current = getStoredCurrentUser();
+    if (current && current.email.toLowerCase().trim() === cleanEmail) {
+      saveCurrentUser({ ...current, password: cleanPassword });
+    }
+
+    // Invalidate the reset token
+    try {
+      const existingRaw = localStorage.getItem(STORAGE_KEYS.PASSWORD_RESETS);
+      if (existingRaw) {
+        const list: PasswordResetItem[] = JSON.parse(existingRaw);
+        const remaining = list.filter(item => item.email !== cleanEmail);
+        localStorage.setItem(STORAGE_KEYS.PASSWORD_RESETS, JSON.stringify(remaining));
+      }
+    } catch {}
+
+    return { success: true };
+  };
+
+  return {
+    currentUser,
+    login,
+    signup,
+    logout,
+    switchRole,
+    loginWithGoogle,
+    loginOrSignupGoogleUser,
+    requestPasswordReset,
+    verifyResetToken,
+    completePasswordReset
+  };
+}
+
+export function useCompetitions() {
+  const [competitions, setCompetitions] = useState<Competition[]>(getStoredCompetitions);
+
+  useEffect(() => {
+    const handleCompChange = () => {
+      setCompetitions(getStoredCompetitions());
+    };
+    window.addEventListener('spec_competitions_change', handleCompChange);
+    return () => window.removeEventListener('spec_competitions_change', handleCompChange);
+  }, []);
+
+  const addCompetition = (data: Omit<Competition, 'id' | 'orderNum'>) => {
+    const list = getStoredCompetitions();
+    const newComp: Competition = {
+      ...data,
+      id: 'comp-' + Date.now(),
+      orderNum: list.length + 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const updated = [...list, newComp];
+    saveCompetitions(updated);
+    return newComp;
+  };
+
+  const updateCompetition = (id: string, data: Partial<Competition>) => {
+    const list = getStoredCompetitions();
+    const updated = list.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
+    saveCompetitions(updated);
+  };
+
+  const deleteCompetition = (id: string) => {
+    const list = getStoredCompetitions();
+    const updated = list.filter(c => c.id !== id);
+    saveCompetitions(updated);
+  };
+
+  const resetToDefault = () => {
+    saveCompetitions(INITIAL_COMPETITIONS);
+  };
+
+  return { competitions, addCompetition, updateCompetition, deleteCompetition, resetToDefault };
+}
+
+export function useCategories() {
+  const [categories, setCategories] = useState<CategoryItem[]>(getStoredCategories);
+
+  useEffect(() => {
+    const handleCategoriesChange = () => {
+      setCategories(getStoredCategories());
+    };
+    window.addEventListener('spec_categories_change', handleCategoriesChange);
+    return () => window.removeEventListener('spec_categories_change', handleCategoriesChange);
+  }, []);
+
+  const addCategory = (data: {
+    name: string;
+    slug?: string;
+    description?: string;
+    icon?: string;
+  }): { success: boolean; category?: CategoryItem; error?: string } => {
+    const cleanName = data.name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'Category name is required.' };
+    }
+
+    let slug = (data.slug || cleanName)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    if (!slug) {
+      slug = 'CAT_' + Date.now().toString(36).toUpperCase();
+    }
+
+    const list = getStoredCategories();
+    if (list.some(c => c.slug.toUpperCase() === slug.toUpperCase())) {
+      return { success: false, error: `A category with identifier "${slug}" already exists.` };
+    }
+
+    const newCat: CategoryItem = {
+      id: 'cat-' + Date.now(),
+      slug,
+      name: cleanName,
+      description: data.description?.trim() || '',
+      icon: data.icon?.trim() || 'category',
+      orderNum: list.length + 1,
+      createdAt: new Date().toISOString()
+    };
+
+    saveCategories([...list, newCat]);
+    return { success: true, category: newCat };
+  };
+
+  const updateCategory = (
+    id: string,
+    data: {
+      name: string;
+      slug?: string;
+      description?: string;
+      icon?: string;
+    }
+  ): { success: boolean; error?: string } => {
+    const list = getStoredCategories();
+    const existing = list.find(c => c.id === id);
+    if (!existing) {
+      return { success: false, error: 'Category not found.' };
+    }
+
+    const cleanName = data.name.trim();
+    if (!cleanName) {
+      return { success: false, error: 'Category name is required.' };
+    }
+
+    let newSlug = (data.slug || cleanName)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    if (!newSlug) newSlug = existing.slug;
+
+    if (newSlug.toUpperCase() !== existing.slug.toUpperCase() && list.some(c => c.id !== id && c.slug.toUpperCase() === newSlug.toUpperCase())) {
+      return { success: false, error: `Another category with identifier "${newSlug}" already exists.` };
+    }
+
+    const oldSlug = existing.slug;
+
+    const updatedList = list.map(c => {
+      if (c.id === id) {
+        return {
+          ...c,
+          name: cleanName,
+          slug: newSlug,
+          description: data.description !== undefined ? data.description.trim() : c.description,
+          icon: data.icon !== undefined ? data.icon.trim() : c.icon,
+        };
+      }
+      return c;
+    });
+
+    saveCategories(updatedList);
+
+    // Cascade slug change to competitions
+    if (newSlug.toUpperCase() !== oldSlug.toUpperCase()) {
+      const comps = getStoredCompetitions();
+      const updatedComps = comps.map(comp => {
+        if (comp.category.toUpperCase() === oldSlug.toUpperCase()) {
+          return { ...comp, category: newSlug };
+        }
+        return comp;
+      });
+      saveCompetitions(updatedComps);
+    }
+
+    return { success: true };
+  };
+
+  const deleteCategory = (
+    id: string,
+    reassignToSlug?: string
+  ): { success: boolean; error?: string; affectedCount?: number } => {
+    const list = getStoredCategories();
+    const existing = list.find(c => c.id === id);
+    if (!existing) {
+      return { success: false, error: 'Category not found.' };
+    }
+
+    const comps = getStoredCompetitions();
+    const affected = comps.filter(c => c.category.toUpperCase() === existing.slug.toUpperCase());
+
+    if (affected.length > 0 && !reassignToSlug) {
+      return {
+        success: false,
+        error: `Cannot remove "${existing.name}": ${affected.length} active competition track(s) are currently assigned to this category. Please reassign or delete those tracks first.`,
+        affectedCount: affected.length
+      };
+    }
+
+    if (affected.length > 0 && reassignToSlug) {
+      const targetSlug = reassignToSlug.toUpperCase();
+      const updatedComps = comps.map(c => {
+        if (c.category.toUpperCase() === existing.slug.toUpperCase()) {
+          return { ...c, category: targetSlug };
+        }
+        return c;
+      });
+      saveCompetitions(updatedComps);
+    }
+
+    const updatedList = list.filter(c => c.id !== id);
+    saveCategories(updatedList);
+
+    return { success: true, affectedCount: affected.length };
+  };
+
+  const resetCategoriesToDefault = () => {
+    saveCategories(INITIAL_CATEGORIES);
+  };
+
+  return {
+    categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    resetCategoriesToDefault
+  };
+}
+
+export function useRegistrations() {
+  const [registrations, setRegistrations] = useState<Registration[]>(getStoredRegistrations);
+
+  useEffect(() => {
+    const handleRegChange = () => {
+      setRegistrations(getStoredRegistrations());
+    };
+    window.addEventListener('spec_registrations_change', handleRegChange);
+    return () => window.removeEventListener('spec_registrations_change', handleRegChange);
+  }, []);
+
+  const addRegistration = (data: Omit<Registration, 'id' | 'registrationId' | 'status' | 'createdAt'>) => {
+    const list = getStoredRegistrations();
+    const regNum = Math.floor(10000 + Math.random() * 90000);
+    const newReg: Registration = {
+      ...data,
+      id: 'reg-' + Date.now(),
+      registrationId: `SPEC26-NED-${regNum}`,
+      status: 'PENDING',
+      createdAt: new Date().toISOString()
+    };
+    const updated = [newReg, ...list];
+    saveRegistrations(updated);
+    return newReg;
+  };
+
+  const updateRegistrationStatus = (id: string, status: RegStatus, notes?: string) => {
+    const list = getStoredRegistrations();
+    const updated = list.map(r => r.id === id ? { ...r, status, notes: notes ?? r.notes } : r);
+    saveRegistrations(updated);
+  };
+
+  const deleteRegistration = (id: string) => {
+    const list = getStoredRegistrations();
+    const updated = list.filter(r => r.id !== id);
+    saveRegistrations(updated);
+  };
+
+  return { registrations, addRegistration, updateRegistrationStatus, deleteRegistration };
+}
+
+export function useUsers() {
+  const [users, setUsers] = useState<User[]>(getStoredUsers);
+
+  useEffect(() => {
+    const handleUsersChange = () => {
+      setUsers(getStoredUsers());
+    };
+    window.addEventListener('spec_users_change', handleUsersChange);
+    return () => window.removeEventListener('spec_users_change', handleUsersChange);
+  }, []);
+
+  const updateUserRole = (userId: string, newRole: Role) => {
+    const list = getStoredUsers();
+    const updated = list.map(u => u.id === userId ? { ...u, role: newRole } : u);
+    saveUsers(updated);
+    const current = getStoredCurrentUser();
+    if (current && current.id === userId) {
+      saveCurrentUser({ ...current, role: newRole });
+    }
+  };
+
+  const addAdminUser = (data: { name: string; email: string; password: string; department?: string; phoneNumber?: string }) => {
+    const list = getStoredUsers();
+    const cleanEmail = data.email.toLowerCase().trim();
+    const existing = list.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    if (existing) {
+      const updated = list.map(u => u.id === existing.id ? { ...u, role: 'ADMIN' as Role, password: data.password } : u);
+      saveUsers(updated);
+      return existing;
+    }
+    const newAdmin: User = {
+      id: 'admin-' + Date.now(),
+      name: data.name.trim(),
+      email: cleanEmail,
+      password: data.password.trim(),
+      role: 'ADMIN',
+      university: 'NED University of Engineering & Technology',
+      department: data.department || 'Department of Electronic Engineering',
+      studentId: 'FAC-' + Math.floor(100 + Math.random() * 900),
+      phoneNumber: data.phoneNumber || '+92 21 99261261',
+      createdAt: new Date().toISOString()
+    };
+    saveUsers([...list, newAdmin]);
+    return newAdmin;
+  };
+
+  const updateUserPassword = (userId: string, newPassword: string) => {
+    const list = getStoredUsers();
+    const updated = list.map(u => u.id === userId ? { ...u, password: newPassword } : u);
+    saveUsers(updated);
+  };
+
+  const updateUserPasswordByEmail = (email: string, newPassword: string) => {
+    const list = getStoredUsers();
+    const cleanEmail = email.toLowerCase().trim();
+    const updated = list.map(u => u.email.toLowerCase().trim() === cleanEmail ? { ...u, password: newPassword } : u);
+    saveUsers(updated);
+  };
+
+  const deleteUser = (userId: string) => {
+    const list = getStoredUsers();
+    const updated = list.filter(u => u.id !== userId);
+    saveUsers(updated);
+  };
+
+  return { users, updateUserRole, addAdminUser, updateUserPassword, updateUserPasswordByEmail, deleteUser };
+}

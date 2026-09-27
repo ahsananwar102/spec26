@@ -1,0 +1,2 @@
+[install]
+cafile = "all_ca.pem"

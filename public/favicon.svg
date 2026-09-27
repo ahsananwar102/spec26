@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Background -->
+  <rect width="64" height="64" rx="14" fill="#0f131c" />
+  <rect x="1" y="1" width="62" height="62" rx="13" stroke="#00f0ff" stroke-opacity="0.3" stroke-width="2" />
+  
+  <!-- Circuit Nodes & Traces -->
+  <path d="M12 20h12v12H12z" stroke="#00f0ff" stroke-width="2" fill="#00f0ff" fill-opacity="0.2" />
+  <path d="M40 32h12v12H40z" stroke="#89ceff" stroke-width="2" fill="#89ceff" fill-opacity="0.2" />
+  
+  <path d="M24 26h16v12" stroke="#00f0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M32 12v14" stroke="#00f0ff" stroke-width="2" stroke-linecap="round" />
+  <path d="M32 38v14" stroke="#89ceff" stroke-width="2" stroke-linecap="round" />
+  
+  <circle cx="32" cy="12" r="3" fill="#00f0ff" />
+  <circle cx="32" cy="52" r="3" fill="#89ceff" />
+  <circle cx="12" cy="32" r="2.5" fill="#00f0ff" />
+  <circle cx="52" cy="32" r="2.5" fill="#89ceff" />
+
+  <!-- Center Core Microchip -->
+  <circle cx="32" cy="32" r="6" fill="#00f0ff" />
+  <circle cx="32" cy="32" r="3" fill="#0f131c" />
+</svg>

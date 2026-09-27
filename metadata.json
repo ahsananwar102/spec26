@@ -1,0 +1,8 @@
+{
+  "name": "SPEC'26 - NED University Engineering Exhibition",
+  "description": "Full-stack event portal for SPEC'26 Students' Project Exhibition & Competition by the Department of Electronic Engineering at NED University.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
