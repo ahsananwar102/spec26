@@ -135,6 +135,31 @@ VALUES ('payment-receipts', 'payment-receipts', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- ==============================================================================
+-- DATABASE PERMISSIONS & ROLE GRANTS (Prevents 42501 permission denied)
+-- ==============================================================================
+-- Grant schema usage and permissions to anon (web visitors) and authenticated users
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON SCHEMA public TO anon, authenticated, service_role;
+
+-- Grant table privileges across public schema
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Explicit grants for each specific application table
+GRANT ALL ON TABLE public.event_settings TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.contact_messages TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.categories TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.competitions TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.registrations TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.team_members TO anon, authenticated, service_role;
+
+-- Ensure future tables and sequences created also inherit permissions
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
+-- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
@@ -144,86 +169,88 @@ ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
--- 1. Categories: Public Read, Write for All
+-- 1. Categories: Full read and write access for app operations
 DROP POLICY IF EXISTS "Allow public read on categories" ON public.categories;
-CREATE POLICY "Allow public read on categories"
-    ON public.categories FOR SELECT
-    USING (true);
-
 DROP POLICY IF EXISTS "Allow write on categories" ON public.categories;
-CREATE POLICY "Allow write on categories"
+DROP POLICY IF EXISTS "Allow full access on categories" ON public.categories;
+
+CREATE POLICY "Allow full access on categories"
     ON public.categories FOR ALL
-    USING (true);
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
 
--- 2. Event Settings: Public Read, Write for All
+-- 2. Event Settings: Full read and write access for dynamic timeline & phase sync
 DROP POLICY IF EXISTS "Allow public read on event_settings" ON public.event_settings;
-CREATE POLICY "Allow public read on event_settings"
-    ON public.event_settings FOR SELECT
-    USING (true);
-
 DROP POLICY IF EXISTS "Allow write on event_settings" ON public.event_settings;
-CREATE POLICY "Allow write on event_settings"
+DROP POLICY IF EXISTS "Allow full access on event_settings" ON public.event_settings;
+
+CREATE POLICY "Allow full access on event_settings"
     ON public.event_settings FOR ALL
-    USING (true);
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
 
--- 3. Competitions: Public Read Access
+-- 3. Competitions: Public Read & Admin Manage
 DROP POLICY IF EXISTS "Allow public read on active competitions" ON public.competitions;
-CREATE POLICY "Allow public read on active competitions"
-    ON public.competitions FOR SELECT
-    USING (true);
-
 DROP POLICY IF EXISTS "Allow admin full access on competitions" ON public.competitions;
-CREATE POLICY "Allow admin full access on competitions"
+DROP POLICY IF EXISTS "Allow full access on competitions" ON public.competitions;
+
+CREATE POLICY "Allow full access on competitions"
     ON public.competitions FOR ALL
-    USING (true);
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
 
--- 4. Registrations: Public Insert, Admin All
+-- 4. Registrations: Submit, View, Update, Delete
 DROP POLICY IF EXISTS "Allow anyone to submit registrations" ON public.registrations;
-CREATE POLICY "Allow anyone to submit registrations"
-    ON public.registrations FOR INSERT
-    WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Allow users to read their registrations or admin view all" ON public.registrations;
-CREATE POLICY "Allow users to read their registrations or admin view all"
-    ON public.registrations FOR SELECT
-    USING (true);
-
 DROP POLICY IF EXISTS "Allow admin to update registration status" ON public.registrations;
-CREATE POLICY "Allow admin to update registration status"
-    ON public.registrations FOR UPDATE
-    USING (true);
+DROP POLICY IF EXISTS "Allow admin to delete registrations" ON public.registrations;
+DROP POLICY IF EXISTS "Allow full access on registrations" ON public.registrations;
 
--- 5. Team Members: Insert & Select
+CREATE POLICY "Allow full access on registrations"
+    ON public.registrations FOR ALL
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- 5. Team Members: Insert, View, Update, Delete
 DROP POLICY IF EXISTS "Allow insert of squad team members" ON public.team_members;
-CREATE POLICY "Allow insert of squad team members"
-    ON public.team_members FOR INSERT
-    WITH CHECK (true);
-
 DROP POLICY IF EXISTS "Allow view of squad team members" ON public.team_members;
-CREATE POLICY "Allow view of squad team members"
-    ON public.team_members FOR SELECT
-    USING (true);
+DROP POLICY IF EXISTS "Allow update of squad team members" ON public.team_members;
+DROP POLICY IF EXISTS "Allow delete of squad team members" ON public.team_members;
+DROP POLICY IF EXISTS "Allow full access on team_members" ON public.team_members;
 
--- 6. Contact Messages: Public Insert
-DROP POLICY IF EXISTS "Allow public to send contact messages" ON public.contact_messages;
-CREATE POLICY "Allow public to send contact messages"
-    ON public.contact_messages FOR INSERT
+CREATE POLICY "Allow full access on team_members"
+    ON public.team_members FOR ALL
+    TO anon, authenticated, service_role
+    USING (true)
     WITH CHECK (true);
 
+-- 6. Contact Messages: Public Submit & Admin Read/Manage
+DROP POLICY IF EXISTS "Allow public to send contact messages" ON public.contact_messages;
 DROP POLICY IF EXISTS "Allow admin to view contact messages" ON public.contact_messages;
-CREATE POLICY "Allow admin to view contact messages"
-    ON public.contact_messages FOR SELECT
-    USING (true);
+DROP POLICY IF EXISTS "Allow public read contact messages" ON public.contact_messages;
+DROP POLICY IF EXISTS "Allow public update contact messages" ON public.contact_messages;
+DROP POLICY IF EXISTS "Allow full access on contact_messages" ON public.contact_messages;
+
+CREATE POLICY "Allow full access on contact_messages"
+    ON public.contact_messages FOR ALL
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- 7. Storage Policies for payment-receipts
 DROP POLICY IF EXISTS "Allow public read of receipts" ON storage.objects;
-CREATE POLICY "Allow public read of receipts"
-    ON storage.objects FOR SELECT
-    USING (bucket_id = 'payment-receipts');
-
 DROP POLICY IF EXISTS "Allow public upload of payment receipts" ON storage.objects;
-CREATE POLICY "Allow public upload of payment receipts"
-    ON storage.objects FOR INSERT
+DROP POLICY IF EXISTS "Allow public update of payment receipts" ON storage.objects;
+DROP POLICY IF EXISTS "Allow full access on payment-receipts bucket" ON storage.objects;
+
+CREATE POLICY "Allow full access on payment-receipts bucket"
+    ON storage.objects FOR ALL
+    TO anon, authenticated, service_role
+    USING (bucket_id = 'payment-receipts')
     WITH CHECK (bucket_id = 'payment-receipts');
 
 -- ==============================================================================
