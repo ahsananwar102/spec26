@@ -16,8 +16,8 @@ const getEnvOrStoredKey = (): string => {
   return ((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (import.meta as any).env?.SUPABASE_ANON_KEY || '').trim();
 };
 
-const SUPABASE_URL = getEnvOrStoredUrl();
-const SUPABASE_ANON_KEY = getEnvOrStoredKey();
+export const SUPABASE_URL = getEnvOrStoredUrl();
+export const SUPABASE_ANON_KEY = getEnvOrStoredKey();
 
 export const isSupabaseConfigured: boolean = Boolean(
   SUPABASE_URL &&

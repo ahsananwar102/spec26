@@ -7,15 +7,18 @@ export const ContactPage: React.FC = () => {
   const [subjectCategory, setSubjectCategory] = useState('');
   const [messageBody, setMessageBody] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveContactMessage({
+    setSubmitting(true);
+    await saveContactMessage({
       fullName,
       emailAddress,
       subjectCategory,
       messageBody
     });
+    setSubmitting(false);
     setSubmitted(true);
   };
 
@@ -127,11 +130,12 @@ export const ContactPage: React.FC = () => {
 
               <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <button
-                  className="inline-flex items-center justify-center gap-2 font-headline-sm text-headline-sm font-semibold px-8 py-3.5 rounded-lg bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim hover:text-on-primary-fixed transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 font-headline-sm text-headline-sm font-semibold px-8 py-3.5 rounded-lg bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim hover:text-on-primary-fixed transition-all duration-200 active:scale-[0.98] shadow-md cursor-pointer disabled:opacity-60"
                   type="submit"
+                  disabled={submitting}
                 >
-                  <span>Send Message</span>
-                  <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                  <span>{submitting ? 'Sending Message...' : 'Send Message'}</span>
+                  <span className="material-symbols-outlined text-[20px]">{submitting ? 'hourglass_top' : 'arrow_forward'}</span>
                 </button>
               </div>
 

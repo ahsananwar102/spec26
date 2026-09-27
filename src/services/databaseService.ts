@@ -8,7 +8,7 @@ import {
   getStoredEventSettings,
   saveEventSettings,
 } from '../lib/store';
-import { Competition, Registration, RegStatus, CategoryItem, EventSettings } from '../types';
+import { Competition, Registration, RegStatus, CategoryItem, EventSettings, ContactMessage } from '../types';
 
 export interface RegistrationInput {
   userId: string;
@@ -53,7 +53,7 @@ export async function getCompetitions(category?: string): Promise<{
         .order('track_number', { ascending: true });
 
       if (category && category.toLowerCase() !== 'all') {
-        query = query.eq('category', category.toLowerCase());
+        query = query.ilike('category', category);
       }
 
       const { data, error } = await query;
@@ -343,10 +343,6 @@ export async function getAdminRegistrations(): Promise<{
         .from('registrations')
         .select(`
           *,
-          competitions (
-            title,
-            category
-          ),
           team_members (
             id,
             member_number,
@@ -359,14 +355,18 @@ export async function getAdminRegistrations(): Promise<{
 
       if (error) throw error;
 
+      const localComps = getStoredCompetitions();
+
       // Transform to client application Registration format
-      const formatted: Registration[] = (data || []).map((row: any) => ({
-        id: row.id,
-        registrationId: row.registration_id || `SPEC26-NED-${row.id.slice(0, 5)}`,
-        userId: row.user_id,
-        competitionId: row.competition_id,
-        competitionTitle: row.competitions?.title || 'Competition Track',
-        competitionCategory: row.competitions?.category?.toUpperCase(),
+      const formatted: Registration[] = (data || []).map((row: any) => {
+        const comp = localComps.find(c => c.id === row.competition_id || c.slug === row.competition_id);
+        return {
+          id: row.id,
+          registrationId: row.registration_id || `SPEC26-NED-${row.id.slice(0, 5)}`,
+          userId: row.user_id,
+          competitionId: row.competition_id,
+          competitionTitle: comp?.title || 'Competition Track',
+          competitionCategory: comp?.category?.toUpperCase(),
         participationModel: row.participation_model === 'team' ? 'TEAM' : 'SOLO',
         teamName: row.team_name,
         fullName: row.leader_name,
@@ -392,7 +392,8 @@ export async function getAdminRegistrations(): Promise<{
           studentId: tm.student_id,
           email: tm.email,
         })),
-      }));
+      };
+    });
 
       // Cache the latest in local store
       saveRegistrations(formatted);
@@ -556,3 +557,88 @@ export async function updateEventSettings(settings: EventSettings): Promise<{
   saveEventSettings(settings);
   return { success: true, error: null };
 }
+
+/**
+ * 9. submitContactMessage(msg)
+ * Inserts contact inquiry into Supabase public.contact_messages table
+ */
+export async function submitContactMessage(msg: {
+  fullName: string;
+  emailAddress: string;
+  subjectCategory: string;
+  messageBody: string;
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { data, error } = await supabase
+        .from('contact_messages')
+        .insert({
+          full_name: msg.fullName,
+          email_address: msg.emailAddress,
+          subject_category: msg.subjectCategory,
+          message_body: msg.messageBody,
+          status: 'NEW',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (err: any) {
+      console.warn('Supabase submitContactMessage error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true };
+}
+
+/**
+ * 10. getContactMessages()
+ * Retrieves contact inquiries from Supabase
+ */
+export async function getContactMessages(): Promise<{
+  data: ContactMessage[];
+  error: string | null;
+}> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { data, error } = await supabase
+        .from('contact_messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        const mapped: ContactMessage[] = data.map((row: any) => ({
+          id: row.id,
+          fullName: row.full_name,
+          emailAddress: row.email_address,
+          subjectCategory: row.subject_category,
+          messageBody: row.message_body,
+          status: row.status,
+          createdAt: row.created_at,
+        }));
+        return { data: mapped, error: null };
+      }
+    } catch (err: any) {
+      console.warn('Supabase getContactMessages error:', err?.message);
+    }
+  }
+  return { data: [], error: null };
+}
+
+/**
+ * 11. deleteRegistrationInDb(id)
+ * Deletes registration record from Supabase
+ */
+export async function deleteRegistrationInDb(id: string): Promise<{ success: boolean }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      await supabase.from('registrations').delete().eq('id', id);
+    } catch (err: any) {
+      console.warn('Supabase delete registration failed:', err?.message);
+    }
+  }
+  return { success: true };
+}
+

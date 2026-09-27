@@ -153,14 +153,53 @@ export function useEventSettings() {
   const [eventSettings, setEventSettings] = useState<EventSettings>(getStoredEventSettings);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchLiveSettings = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('event_settings')
+            .select('*')
+            .eq('id', 'current')
+            .single();
+
+          if (!error && data && isMounted) {
+            const mapped: EventSettings = {
+              registrationPhase: data.registration_phase as RegistrationPhase,
+              eventDate: data.event_date || '2026-04-15',
+              registrationStartDate: data.registration_start_date || '2026-03-01',
+              registrationEndDate: data.registration_end_date || '2026-04-10',
+              competitionDates: data.competition_dates || '15–16 April 2026',
+              updatedAt: data.updated_at || new Date().toISOString()
+            };
+            saveEventSettings(mapped);
+            setEventSettings(mapped);
+          }
+        } catch (err) {
+          console.warn('Could not fetch live event_settings from Supabase:', err);
+        }
+      }
+    };
+
+    fetchLiveSettings();
+
     const handleSettingsChange = () => {
       setEventSettings(getStoredEventSettings());
     };
     window.addEventListener('spec_event_settings_change', handleSettingsChange);
-    return () => window.removeEventListener('spec_event_settings_change', handleSettingsChange);
+
+    // Poll every 8s so all devices stay dynamically synced
+    const interval = setInterval(fetchLiveSettings, 8000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spec_event_settings_change', handleSettingsChange);
+      clearInterval(interval);
+    };
   }, []);
 
-  const updateEventSettings = (updates: Partial<EventSettings>) => {
+  const updateEventSettings = async (updates: Partial<EventSettings>) => {
     const current = getStoredEventSettings();
     const updated: EventSettings = {
       ...current,
@@ -168,10 +207,32 @@ export function useEventSettings() {
       updatedAt: new Date().toISOString()
     };
     saveEventSettings(updated);
+    setEventSettings(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { error } = await supabase
+          .from('event_settings')
+          .upsert({
+            id: 'current',
+            registration_phase: updated.registrationPhase,
+            event_date: updated.eventDate,
+            registration_start_date: updated.registrationStartDate,
+            registration_end_date: updated.registrationEndDate,
+            competition_dates: updated.competitionDates,
+            updated_at: updated.updatedAt
+          });
+        if (error) {
+          console.error('Supabase event_settings update error:', error.message);
+        }
+      } catch (err: any) {
+        console.error('Supabase event_settings update error:', err?.message);
+      }
+    }
   };
 
-  const setRegistrationPhase = (phase: RegistrationPhase) => {
-    updateEventSettings({ registrationPhase: phase });
+  const setRegistrationPhase = async (phase: RegistrationPhase) => {
+    await updateEventSettings({ registrationPhase: phase });
   };
 
   return { eventSettings, updateEventSettings, setRegistrationPhase };
@@ -192,22 +253,48 @@ export function formatDisplayDate(dateStr?: string): string {
   }
 }
 
-export function saveContactMessage(msg: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) {
+export async function saveContactMessage(msg: Omit<ContactMessage, 'id' | 'createdAt' | 'status'>) {
+  const localId = 'msg-' + Date.now();
+  const newMsg: ContactMessage = {
+    ...msg,
+    id: localId,
+    createdAt: new Date().toISOString(),
+    status: 'NEW'
+  };
+
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CONTACT_MSGS);
     const msgs: ContactMessage[] = raw ? JSON.parse(raw) : [];
-    const newMsg: ContactMessage = {
-      ...msg,
-      id: 'msg-' + Date.now(),
-      createdAt: new Date().toISOString(),
-      status: 'NEW'
-    };
     msgs.unshift(newMsg);
     localStorage.setItem(STORAGE_KEYS.CONTACT_MSGS, JSON.stringify(msgs));
-    return newMsg;
-  } catch {
-    return null;
+    window.dispatchEvent(new Event('spec_contact_msgs_change'));
+  } catch {}
+
+  if (supabase && isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('contact_messages')
+        .insert({
+          full_name: msg.fullName,
+          email_address: msg.emailAddress,
+          subject_category: msg.subjectCategory,
+          message_body: msg.messageBody,
+          status: 'NEW'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Supabase contact_messages error:', error.message);
+      } else if (data) {
+        newMsg.id = data.id;
+      }
+    } catch (err: any) {
+      console.error('Supabase contact_messages exception:', err?.message);
+    }
   }
+
+  return newMsg;
 }
 
 // React Hooks for state synchronization across components
@@ -566,14 +653,57 @@ export function useCompetitions() {
   const [competitions, setCompetitions] = useState<Competition[]>(getStoredCompetitions);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchLiveCompetitions = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('competitions')
+            .select('*')
+            .order('track_number', { ascending: true });
+
+          if (!error && data && data.length > 0 && isMounted) {
+            const mapped: Competition[] = data.map((row: any) => ({
+              id: row.id,
+              slug: row.slug,
+              orderNum: parseInt(row.track_number, 10) || 1,
+              title: row.title,
+              category: row.category?.toUpperCase(),
+              description: row.description,
+              format: row.format,
+              minMembers: row.min_members,
+              maxMembers: row.max_members,
+              soloFee: Number(row.solo_fee || 0),
+              teamFee: Number(row.team_fee || 0),
+              keyDeliverables: row.rules_summary,
+              specsSummary: row.rules_summary,
+              isActive: row.is_active,
+              createdAt: row.created_at,
+              updatedAt: row.updated_at
+            }));
+            saveCompetitions(mapped);
+            setCompetitions(mapped);
+          }
+        } catch (err) {
+          console.warn('Could not fetch competitions from Supabase:', err);
+        }
+      }
+    };
+
+    fetchLiveCompetitions();
+
     const handleCompChange = () => {
       setCompetitions(getStoredCompetitions());
     };
     window.addEventListener('spec_competitions_change', handleCompChange);
-    return () => window.removeEventListener('spec_competitions_change', handleCompChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spec_competitions_change', handleCompChange);
+    };
   }, []);
 
-  const addCompetition = (data: Omit<Competition, 'id' | 'orderNum'>) => {
+  const addCompetition = async (data: Omit<Competition, 'id' | 'orderNum'>) => {
     const list = getStoredCompetitions();
     const newComp: Competition = {
       ...data,
@@ -584,19 +714,74 @@ export function useCompetitions() {
     };
     const updated = [...list, newComp];
     saveCompetitions(updated);
+    setCompetitions(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: inserted } = await supabase.from('competitions').insert({
+          slug: data.slug,
+          track_number: newComp.orderNum,
+          title: data.title,
+          category: data.category.toUpperCase(),
+          description: data.description,
+          format: data.format,
+          min_members: data.minMembers,
+          max_members: data.maxMembers,
+          solo_fee: data.soloFee,
+          team_fee: data.teamFee,
+          rules_summary: data.keyDeliverables || data.specsSummary || '',
+          is_active: data.isActive
+        }).select().single();
+        if (inserted?.id) {
+          newComp.id = inserted.id;
+        }
+      } catch (err) {
+        console.error('Failed to insert competition into Supabase:', err);
+      }
+    }
     return newComp;
   };
 
-  const updateCompetition = (id: string, data: Partial<Competition>) => {
+  const updateCompetition = async (id: string, data: Partial<Competition>) => {
     const list = getStoredCompetitions();
     const updated = list.map(c => c.id === id ? { ...c, ...data, updatedAt: new Date().toISOString() } : c);
     saveCompetitions(updated);
+    setCompetitions(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const payload: any = { updated_at: new Date().toISOString() };
+        if (data.title !== undefined) payload.title = data.title;
+        if (data.category !== undefined) payload.category = data.category.toUpperCase();
+        if (data.description !== undefined) payload.description = data.description;
+        if (data.format !== undefined) payload.format = data.format;
+        if (data.minMembers !== undefined) payload.min_members = data.minMembers;
+        if (data.maxMembers !== undefined) payload.max_members = data.maxMembers;
+        if (data.soloFee !== undefined) payload.solo_fee = data.soloFee;
+        if (data.teamFee !== undefined) payload.team_fee = data.teamFee;
+        if (data.isActive !== undefined) payload.is_active = data.isActive;
+        if (data.keyDeliverables !== undefined) payload.rules_summary = data.keyDeliverables;
+
+        await supabase.from('competitions').update(payload).or(`id.eq.${id},slug.eq.${id}`);
+      } catch (err) {
+        console.error('Failed to update competition in Supabase:', err);
+      }
+    }
   };
 
-  const deleteCompetition = (id: string) => {
+  const deleteCompetition = async (id: string) => {
     const list = getStoredCompetitions();
     const updated = list.filter(c => c.id !== id);
     saveCompetitions(updated);
+    setCompetitions(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('competitions').delete().or(`id.eq.${id},slug.eq.${id}`);
+      } catch (err) {
+        console.error('Failed to delete competition from Supabase:', err);
+      }
+    }
   };
 
   const resetToDefault = () => {
@@ -610,19 +795,53 @@ export function useCategories() {
   const [categories, setCategories] = useState<CategoryItem[]>(getStoredCategories);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchLiveCategories = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('categories')
+            .select('*')
+            .order('order_num', { ascending: true });
+
+          if (!error && data && data.length > 0 && isMounted) {
+            const mapped: CategoryItem[] = data.map((row: any) => ({
+              id: row.id,
+              slug: row.slug,
+              name: row.name,
+              description: row.description || '',
+              icon: row.icon || 'category',
+              orderNum: row.order_num || 1,
+              createdAt: row.created_at
+            }));
+            saveCategories(mapped);
+            setCategories(mapped);
+          }
+        } catch (err) {
+          console.warn('Could not fetch categories from Supabase:', err);
+        }
+      }
+    };
+
+    fetchLiveCategories();
+
     const handleCategoriesChange = () => {
       setCategories(getStoredCategories());
     };
     window.addEventListener('spec_categories_change', handleCategoriesChange);
-    return () => window.removeEventListener('spec_categories_change', handleCategoriesChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spec_categories_change', handleCategoriesChange);
+    };
   }, []);
 
-  const addCategory = (data: {
+  const addCategory = async (data: {
     name: string;
     slug?: string;
     description?: string;
     icon?: string;
-  }): { success: boolean; category?: CategoryItem; error?: string } => {
+  }): Promise<{ success: boolean; category?: CategoryItem; error?: string }> => {
     const cleanName = data.name.trim();
     if (!cleanName) {
       return { success: false, error: 'Category name is required.' };
@@ -653,11 +872,31 @@ export function useCategories() {
       createdAt: new Date().toISOString()
     };
 
-    saveCategories([...list, newCat]);
+    const updated = [...list, newCat];
+    saveCategories(updated);
+    setCategories(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: inserted } = await supabase.from('categories').insert({
+          slug,
+          name: cleanName,
+          description: newCat.description,
+          icon: newCat.icon,
+          order_num: newCat.orderNum
+        }).select().single();
+        if (inserted?.id) {
+          newCat.id = inserted.id;
+        }
+      } catch (err: any) {
+        console.error('Supabase addCategory error:', err?.message);
+      }
+    }
+
     return { success: true, category: newCat };
   };
 
-  const updateCategory = (
+  const updateCategory = async (
     id: string,
     data: {
       name: string;
@@ -665,7 +904,7 @@ export function useCategories() {
       description?: string;
       icon?: string;
     }
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredCategories();
     const existing = list.find(c => c.id === id);
     if (!existing) {
@@ -705,6 +944,7 @@ export function useCategories() {
     });
 
     saveCategories(updatedList);
+    setCategories(updatedList);
 
     // Cascade slug change to competitions
     if (newSlug.toUpperCase() !== oldSlug.toUpperCase()) {
@@ -718,13 +958,26 @@ export function useCategories() {
       saveCompetitions(updatedComps);
     }
 
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('categories').update({
+          name: cleanName,
+          slug: newSlug,
+          description: data.description !== undefined ? data.description.trim() : existing.description,
+          icon: data.icon !== undefined ? data.icon.trim() : existing.icon,
+        }).or(`id.eq.${id},slug.eq.${existing.slug}`);
+      } catch (err: any) {
+        console.error('Supabase updateCategory error:', err?.message);
+      }
+    }
+
     return { success: true };
   };
 
-  const deleteCategory = (
+  const deleteCategory = async (
     id: string,
     reassignToSlug?: string
-  ): { success: boolean; error?: string; affectedCount?: number } => {
+  ): Promise<{ success: boolean; error?: string; affectedCount?: number }> => {
     const list = getStoredCategories();
     const existing = list.find(c => c.id === id);
     if (!existing) {
@@ -755,6 +1008,15 @@ export function useCategories() {
 
     const updatedList = list.filter(c => c.id !== id);
     saveCategories(updatedList);
+    setCategories(updatedList);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('categories').delete().or(`id.eq.${id},slug.eq.${existing.slug}`);
+      } catch (err: any) {
+        console.error('Supabase deleteCategory error:', err?.message);
+      }
+    }
 
     return { success: true, affectedCount: affected.length };
   };
@@ -776,11 +1038,87 @@ export function useRegistrations() {
   const [registrations, setRegistrations] = useState<Registration[]>(getStoredRegistrations);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchLiveRegistrations = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('registrations')
+            .select(`
+              *,
+              team_members (
+                id,
+                member_number,
+                full_name,
+                student_id,
+                email
+              )
+            `)
+            .order('created_at', { ascending: false });
+
+          if (!error && data && isMounted) {
+            const comps = getStoredCompetitions();
+            const formatted: Registration[] = data.map((row: any) => {
+              const comp = comps.find(c => c.id === row.competition_id || c.slug === row.competition_id);
+              return {
+                id: row.id,
+                registrationId: row.registration_id || `SPEC26-NED-${row.id.slice(0, 5)}`,
+                userId: row.user_id,
+                competitionId: row.competition_id,
+                competitionTitle: comp?.title || 'Competition Track',
+                competitionCategory: comp?.category?.toUpperCase(),
+                participationModel: row.participation_model === 'team' ? 'TEAM' : 'SOLO',
+                teamName: row.team_name,
+                fullName: row.leader_name,
+                studentId: row.leader_student_id,
+                universityName: row.university,
+                department: row.department,
+                academicYear: row.academic_year,
+                phoneNumber: row.phone,
+                emailAddress: row.email,
+                paymentChannel: row.payment_channel,
+                transactionId: row.transaction_id,
+                receiptUrl: row.receipt_url,
+                receiptFileName: 'voucher.png',
+                status: row.status?.toUpperCase() as RegStatus,
+                calculatedFee: Number(row.calculated_fee || 0),
+                notes: row.notes,
+                createdAt: row.created_at,
+                teamMembers: (row.team_members || []).map((tm: any) => ({
+                  id: tm.id,
+                  registrationId: row.id,
+                  memberIndex: tm.member_number,
+                  name: tm.full_name,
+                  studentId: tm.student_id,
+                  email: tm.email,
+                })),
+              };
+            });
+            saveRegistrations(formatted);
+            setRegistrations(formatted);
+          }
+        } catch (err) {
+          console.warn('Could not fetch registrations from Supabase:', err);
+        }
+      }
+    };
+
+    fetchLiveRegistrations();
+
     const handleRegChange = () => {
       setRegistrations(getStoredRegistrations());
     };
     window.addEventListener('spec_registrations_change', handleRegChange);
-    return () => window.removeEventListener('spec_registrations_change', handleRegChange);
+
+    // Poll every 8s so admin dashboard stays completely up to date with new submissions
+    const interval = setInterval(fetchLiveRegistrations, 8000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spec_registrations_change', handleRegChange);
+      clearInterval(interval);
+    };
   }, []);
 
   const addRegistration = (data: Omit<Registration, 'id' | 'registrationId' | 'status' | 'createdAt'>) => {
@@ -795,19 +1133,45 @@ export function useRegistrations() {
     };
     const updated = [newReg, ...list];
     saveRegistrations(updated);
+    setRegistrations(updated);
     return newReg;
   };
 
-  const updateRegistrationStatus = (id: string, status: RegStatus, notes?: string) => {
+  const updateRegistrationStatus = async (id: string, status: RegStatus, notes?: string) => {
     const list = getStoredRegistrations();
     const updated = list.map(r => r.id === id ? { ...r, status, notes: notes ?? r.notes } : r);
     saveRegistrations(updated);
+    setRegistrations(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('registrations')
+          .update({
+            status: status.toLowerCase(),
+            notes: notes ?? undefined,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id);
+      } catch (err: any) {
+        console.error('Supabase updateRegistrationStatus error:', err?.message);
+      }
+    }
   };
 
-  const deleteRegistration = (id: string) => {
+  const deleteRegistration = async (id: string) => {
     const list = getStoredRegistrations();
     const updated = list.filter(r => r.id !== id);
     saveRegistrations(updated);
+    setRegistrations(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('registrations').delete().eq('id', id);
+      } catch (err: any) {
+        console.error('Supabase deleteRegistration error:', err?.message);
+      }
+    }
   };
 
   return { registrations, addRegistration, updateRegistrationStatus, deleteRegistration };

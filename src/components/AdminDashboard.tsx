@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth, useCompetitions, useRegistrations, useEventSettings, useUsers, useCategories, formatDisplayDate } from '../lib/store';
-import { Competition, Registration, Category, Format, RegStatus, RegistrationPhase, User, Role, CategoryItem } from '../types';
-import { updateRegistrationStatus as updateStatusInDb } from '../services/databaseService';
+import { Competition, Registration, Category, Format, RegStatus, RegistrationPhase, User, Role, CategoryItem, ContactMessage } from '../types';
+import { updateRegistrationStatus as updateStatusInDb, getContactMessages } from '../services/databaseService';
+import { isSupabaseConfigured, SUPABASE_URL, configureCustomSupabase, clearCustomSupabase } from '../lib/supabaseClient';
 
 const POPULAR_CATEGORY_ICONS = [
   { icon: 'memory', label: 'Electronics' },
@@ -31,7 +32,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const { categories, addCategory, updateCategory, deleteCategory, resetCategoriesToDefault } = useCategories();
 
   // Active Admin Sub-Tab
-  const [adminTab, setAdminTab] = useState<'registrations' | 'competitions' | 'categories' | 'timeline' | 'admins'>('registrations');
+  const [adminTab, setAdminTab] = useState<'registrations' | 'competitions' | 'categories' | 'timeline' | 'admins' | 'messages'>('registrations');
+
+  // Database Connection Modal State
+  const [isDbConfigModalOpen, setIsDbConfigModalOpen] = useState(false);
+  const [customDbUrl, setCustomDbUrl] = useState(SUPABASE_URL || '');
+  const [customDbKey, setCustomDbKey] = useState('');
+
+  // Contact Messages State
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
+  const [contactMessageSearch, setContactMessageSearch] = useState('');
+
+  useEffect(() => {
+    getContactMessages().then(res => {
+      if (res.data) setContactMessages(res.data);
+    });
+  }, [adminTab]);
 
   // Category Management State
   const [categorySearch, setCategorySearch] = useState('');
@@ -369,7 +385,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     }
   };
 
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     setCategoryError(null);
     if (!categoryForm.name.trim()) {
@@ -377,14 +393,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       return;
     }
     if (editingCategory) {
-      const res = updateCategory(editingCategory.id, categoryForm);
+      const res = await updateCategory(editingCategory.id, categoryForm);
       if (!res.success) {
         setCategoryError(res.error || 'Failed to update category.');
         return;
       }
       setCategoryToast(`Category "${categoryForm.name}" updated successfully.`);
     } else {
-      const res = addCategory(categoryForm);
+      const res = await addCategory(categoryForm);
       if (!res.success) {
         setCategoryError(res.error || 'Failed to create category.');
         return;
@@ -395,13 +411,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     setTimeout(() => setCategoryToast(null), 4000);
   };
 
-  const handleConfirmDeleteWithReassign = () => {
+  const handleConfirmDeleteWithReassign = async () => {
     if (!categoryDeleteTarget) return;
     if (!categoryReassignSlug) {
       alert('Please select a destination category to reassign the tracks to.');
       return;
     }
-    const res = deleteCategory(categoryDeleteTarget.category.id, categoryReassignSlug);
+    const res = await deleteCategory(categoryDeleteTarget.category.id, categoryReassignSlug);
     if (res.success) {
       setCategoryToast(`Category "${categoryDeleteTarget.category.name}" removed and ${res.affectedCount || 0} track(s) reassigned to "${categoryReassignSlug}".`);
       setTimeout(() => setCategoryToast(null), 4000);
@@ -559,7 +575,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <span className="material-symbols-outlined text-[16px]">shield_person</span>
               <span>Admin Access ({adminUsers.length})</span>
             </button>
+            <button
+              onClick={() => setAdminTab('messages')}
+              className={`px-3.5 py-2 rounded text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5 ${
+                adminTab === 'messages'
+                  ? 'bg-primary-container text-on-primary-container'
+                  : 'text-on-surface-variant hover:text-white'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">mail</span>
+              <span>Inquiries ({contactMessages.length})</span>
+            </button>
           </div>
+
+          {/* Database Connection Status Badge */}
+          <button
+            onClick={() => setIsDbConfigModalOpen(true)}
+            className={`px-3 py-2 rounded-lg text-xs font-code-md flex items-center gap-2 border transition-all cursor-pointer ${
+              isSupabaseConfigured
+                ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20'
+                : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+            }`}
+            title="Click to check or configure live Supabase database connection"
+          >
+            <span className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`}></span>
+            <span>{isSupabaseConfigured ? 'DB: Live' : 'DB: Local Mock'}</span>
+            <span className="material-symbols-outlined text-[14px]">tune</span>
+          </button>
 
           <button
             onClick={() => {
@@ -1070,14 +1112,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                         if (assignedComps.length > 0) {
                           setCategoryDeleteTarget({ category: cat, affectedCount: assignedComps.length });
                           const other = categories.find(c => c.id !== cat.id);
                           setCategoryReassignSlug(other ? other.slug : '');
                         } else {
                           if (confirm(`Are you sure you want to remove category "${cat.name}"?`)) {
-                            deleteCategory(cat.id);
+                            await deleteCategory(cat.id);
                             setCategoryToast(`Category "${cat.name}" removed.`);
                             setTimeout(() => setCategoryToast(null), 3000);
                           }
@@ -1661,6 +1703,212 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <code className="text-white">
                 UPDATE auth.users SET raw_user_meta_data = raw_user_meta_data || '{`{"role": "ADMIN"}`}' WHERE email = 'co-admin@neduet.edu.pk';
               </code>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* TAB: CONTACT INQUIRIES & MESSAGES */}
+      {/* ------------------------------------------------------------- */}
+      {adminTab === 'messages' && (
+        <div className="space-y-6 animate-fadeIn">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-xl bg-surface-container-low border border-outline-variant/30">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-primary-container"></span>
+                <span className="font-label-caps text-xs text-primary uppercase tracking-wider">
+                  Live Contact Inquiries
+                </span>
+              </div>
+              <h2 className="font-headline-md text-headline-md font-bold text-white mt-1">
+                Participant Queries &amp; Feedback
+              </h2>
+              <p className="font-body-sm text-on-surface-variant text-xs mt-1">
+                Real-time messages submitted via the public Contact &amp; Location page.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={contactMessageSearch}
+                onChange={(e) => setContactMessageSearch(e.target.value)}
+                placeholder="Search messages..."
+                className="px-3.5 py-2 rounded bg-surface-container text-xs text-white border border-outline-variant/30 focus:outline-none focus:border-primary-container"
+              />
+              <button
+                onClick={() => {
+                  getContactMessages().then(res => {
+                    if (res.data) setContactMessages(res.data);
+                  });
+                }}
+                className="px-3.5 py-2 rounded bg-surface-container-high hover:bg-surface-container-highest text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Refresh messages"
+              >
+                <span className="material-symbols-outlined text-[16px]">refresh</span>
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Messages List */}
+          {contactMessages.length === 0 ? (
+            <div className="p-12 text-center rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-3">
+              <span className="material-symbols-outlined text-[48px] text-outline">mark_email_read</span>
+              <h3 className="font-bold text-white text-base">No Inquiries Found</h3>
+              <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+                No participant inquiries have been submitted yet. New contact messages will appear here in real time.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {contactMessages
+                .filter(m => {
+                  const q = contactMessageSearch.toLowerCase().trim();
+                  if (!q) return true;
+                  return (
+                    m.fullName.toLowerCase().includes(q) ||
+                    m.emailAddress.toLowerCase().includes(q) ||
+                    m.subjectCategory.toLowerCase().includes(q) ||
+                    m.messageBody.toLowerCase().includes(q)
+                  );
+                })
+                .map((msg) => (
+                  <div
+                    key={msg.id}
+                    className="p-5 rounded-xl bg-surface-container-low border border-outline-variant/30 space-y-3 hover:border-outline-variant/60 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-outline-variant/20 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{msg.fullName}</span>
+                        <a
+                          href={`mailto:${msg.emailAddress}`}
+                          className="font-code-sm text-xs text-primary hover:underline"
+                        >
+                          {msg.emailAddress}
+                        </a>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-label-caps text-[10px] px-2 py-0.5 rounded bg-surface-container-high text-secondary uppercase">
+                          {msg.subjectCategory}
+                        </span>
+                        <span className="text-[11px] text-on-surface-variant font-code-sm">
+                          {formatDisplayDate(msg.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-on-surface-variant leading-relaxed whitespace-pre-wrap">
+                      {msg.messageBody}
+                    </p>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: SUPABASE DATABASE CONNECTION CONFIGURATION */}
+      {/* ------------------------------------------------------------- */}
+      {isDbConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4">
+              <div className="flex items-center gap-2.5">
+                <span className={`w-3 h-3 rounded-full ${isSupabaseConfigured ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                <h3 className="font-headline-sm text-lg font-bold text-white">Database Connection Status</h3>
+              </div>
+              <button
+                onClick={() => setIsDbConfigModalOpen(false)}
+                className="text-on-surface-variant hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className={`p-4 rounded-xl border text-xs leading-relaxed ${
+                isSupabaseConfigured
+                  ? 'bg-green-500/10 border-green-500/30 text-green-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+              }`}>
+                {isSupabaseConfigured ? (
+                  <div>
+                    <strong>Connected to Live Database!</strong>
+                    <p className="mt-1 font-code-sm text-[11px] truncate text-white">URL: {SUPABASE_URL}</p>
+                    <p className="mt-1">All registrations, category edits, timeline phase changes, and contact messages synchronize in real time.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <strong>Operating in Local Standalone Mode.</strong>
+                    <p className="mt-1">Data is saving to this browser only. Enter your Supabase Project URL and Anon Key below to connect live PostgreSQL storage.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-code-md text-on-surface uppercase mb-1">
+                    Supabase Project URL
+                  </label>
+                  <input
+                    type="text"
+                    value={customDbUrl}
+                    onChange={(e) => setCustomDbUrl(e.target.value)}
+                    placeholder="https://xyzcompany.supabase.co"
+                    className="w-full px-3.5 py-2.5 bg-surface-container text-white text-xs font-code-md rounded-lg border border-outline-variant/40 focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-code-md text-on-surface uppercase mb-1">
+                    Supabase Anon Public API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={customDbKey}
+                    onChange={(e) => setCustomDbKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                    className="w-full px-3.5 py-2.5 bg-surface-container text-white text-xs font-code-md rounded-lg border border-outline-variant/40 focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-outline-variant/30">
+              {isSupabaseConfigured ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearCustomSupabase();
+                  }}
+                  className="text-xs text-error hover:underline font-code-md cursor-pointer"
+                >
+                  Clear Custom Credentials
+                </button>
+              ) : <div />}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDbConfigModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customDbUrl.trim() && customDbKey.trim()) {
+                      configureCustomSupabase(customDbUrl.trim(), customDbKey.trim());
+                    }
+                  }}
+                  disabled={!customDbUrl.trim() || !customDbKey.trim()}
+                  className="px-5 py-2 bg-primary-container text-on-primary-container font-semibold rounded-lg text-xs hover:bg-primary-fixed-dim disabled:opacity-50 cursor-pointer"
+                >
+                  Save &amp; Connect
+                </button>
+              </div>
             </div>
           </div>
         </div>
