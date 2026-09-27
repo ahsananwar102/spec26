@@ -55,6 +55,7 @@ export const INITIAL_USERS: User[] = [
     email: 'admin@neduet.edu.pk',
     password: 'admin123',
     role: 'ADMIN',
+    isRootAdmin: true,
     university: 'NED University of Engineering & Technology',
     studentId: 'FAC-EE-001',
     department: 'Department of Electronic Engineering',

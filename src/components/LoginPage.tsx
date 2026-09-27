@@ -179,24 +179,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccessRedir
             </form>
           </div>
 
-          {/* Quick Demo Access for Evaluation */}
-          <div className="mt-6 pt-4 border-t border-outline-variant/20 flex items-center justify-between gap-2 text-xs">
-            <span className="text-outline font-code-md">Quick Student Demo:</span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('m.ali@cloud.neduet.edu.pk');
-                  setPassword('user123');
-                  handleLogin('m.ali@cloud.neduet.edu.pk', 'user123');
-                }}
-                className="px-2.5 py-1 rounded bg-surface-container-high hover:bg-surface-container-highest text-secondary font-code-md text-[11px] transition-colors cursor-pointer border border-outline-variant/30 flex items-center gap-1.5"
-              >
-                <span className="material-symbols-outlined text-[14px]">school</span>
-                Fill Student Demo
-              </button>
-            </div>
-          </div>
 
           {/* Footer Link */}
           <div className="mt-6 text-center pt-4 border-t border-outline-variant/20">

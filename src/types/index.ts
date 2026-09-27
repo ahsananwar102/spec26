@@ -35,6 +35,7 @@ export interface User {
   email: string;
   password?: string;
   role: Role;
+  isRootAdmin?: boolean;
   university?: string;
   studentId?: string;
   department?: string;

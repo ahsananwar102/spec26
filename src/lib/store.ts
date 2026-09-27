@@ -64,7 +64,57 @@ initializeStore();
 export function getStoredUsers(): User[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-    return raw ? JSON.parse(raw) : INITIAL_USERS;
+    let list: User[] = raw ? JSON.parse(raw) : INITIAL_USERS;
+    if (!Array.isArray(list) || list.length === 0) {
+      list = [...INITIAL_USERS];
+    }
+
+    // Invariant: There MUST ALWAYS be exactly ONE Root Admin at any given time.
+    let rootFound = false;
+    let needsPersistence = false;
+
+    // First pass: keep at most one existing root admin
+    list = list.map(u => {
+      if (u.role === 'ADMIN' && u.isRootAdmin) {
+        if (!rootFound) {
+          rootFound = true;
+          return { ...u, isRootAdmin: true };
+        } else {
+          needsPersistence = true;
+          return { ...u, isRootAdmin: false };
+        }
+      }
+      if (u.isRootAdmin && u.role !== 'ADMIN') {
+        needsPersistence = true;
+        return { ...u, isRootAdmin: false };
+      }
+      return u;
+    });
+
+    // If no root admin was found, assign root status to user-admin-1 or the first ADMIN
+    if (!rootFound) {
+      let designated = false;
+      list = list.map(u => {
+        if (!designated && (u.id === 'user-admin-1' || u.role === 'ADMIN')) {
+          designated = true;
+          needsPersistence = true;
+          return { ...u, role: 'ADMIN' as Role, isRootAdmin: true };
+        }
+        return u;
+      });
+
+      // If still no admin exists, inject default root admin
+      if (!designated) {
+        list.unshift({ ...INITIAL_USERS[0], role: 'ADMIN', isRootAdmin: true });
+        needsPersistence = true;
+      }
+    }
+
+    if (needsPersistence && typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(list));
+    }
+
+    return list;
   } catch {
     return INITIAL_USERS;
   }
@@ -91,7 +141,17 @@ export function getStoredRegistrations(): Registration[] {
 export function getStoredCurrentUser(): User | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed: User = JSON.parse(raw);
+    if (!parsed || !parsed.id) return null;
+
+    // Security check: Validate session against registered users database to prevent client-side privilege escalation
+    const users = getStoredUsers();
+    const verified = users.find(u => u.id === parsed.id || u.email.toLowerCase().trim() === parsed.email.toLowerCase().trim());
+    if (verified) {
+      return verified;
+    }
+    return null; // Reject unverified / forged sessions
   } catch {
     return null;
   }
@@ -376,22 +436,6 @@ export function useAuth() {
       return { success: true, user: found };
     }
 
-    // Check default admin fallback
-    if (cleanEmail === 'admin@neduet.edu.pk') {
-      if (cleanPassword === 'admin123') {
-        const adminUser: User = {
-          ...INITIAL_USERS[0],
-          password: 'admin123'
-        };
-        const updatedUsers = [...users, adminUser];
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
-        saveCurrentUser(adminUser);
-        return { success: true, user: adminUser };
-      } else {
-        return { success: false, error: 'Incorrect administrator password.' };
-      }
-    }
-
     return { success: false, error: 'Account not found. Please check your email or create an account.' };
   };
 
@@ -424,6 +468,7 @@ export function useAuth() {
       email: cleanEmail,
       password: data.password?.trim() || 'user123',
       role: 'USER',
+      isRootAdmin: false,
       university: data.university || 'NED University of Engineering & Technology',
       department: data.department || 'Electronic Engineering',
       studentId: data.studentId || 'ES-' + Math.floor(100 + Math.random() * 900) + '/2023',
@@ -456,6 +501,7 @@ export function useAuth() {
       name: userData.name.trim(),
       email: cleanEmail,
       role: 'USER',
+      isRootAdmin: false,
       university: userData.university || 'NED University of Engineering & Technology',
       department: userData.department || 'Electronic Engineering',
       studentId: userData.studentId || 'STU-' + Math.floor(1000 + Math.random() * 9000),
@@ -475,15 +521,6 @@ export function useAuth() {
     saveCurrentUser(null);
   };
 
-  const switchRole = (role: 'USER' | 'ADMIN') => {
-    if (!currentUser) {
-      const targetUser = INITIAL_USERS.find(u => u.role === role) || INITIAL_USERS[0];
-      saveCurrentUser(targetUser);
-    } else {
-      const updated = { ...currentUser, role };
-      saveCurrentUser(updated);
-    }
-  };
 
   const requestPasswordReset = async (email: string): Promise<{
     success: boolean;
@@ -501,7 +538,7 @@ export function useAuth() {
     }
 
     const users = getStoredUsers();
-    const userFound = users.some(u => u.email.toLowerCase().trim() === cleanEmail) || cleanEmail === 'admin@neduet.edu.pk';
+    const userFound = users.some(u => u.email.toLowerCase().trim() === cleanEmail);
 
     let sentViaSupabase = false;
     if (supabase && isSupabaseConfigured) {
@@ -541,11 +578,13 @@ export function useAuth() {
     });
     localStorage.setItem(STORAGE_KEYS.PASSWORD_RESETS, JSON.stringify(active));
 
-    const resetLink = `${window.location.origin}/#reset-password?email=${encodeURIComponent(cleanEmail)}&token=${token}`;
+    // Security: In production, never leak the reset token to the unauthenticated caller
+    if (import.meta.env.DEV) {
+      console.info(`[Dev/Local Only] Password reset link for ${cleanEmail}: ${window.location.origin}/#reset-password?email=${encodeURIComponent(cleanEmail)}&token=${token}`);
+    }
 
     return {
       success: true,
-      resetLink,
       isSupabase: sentViaSupabase
     };
   };
@@ -608,12 +647,6 @@ export function useAuth() {
 
     if (exists) {
       updated = list.map(u => u.email.toLowerCase().trim() === cleanEmail ? { ...u, password: cleanPassword } : u);
-    } else if (cleanEmail === 'admin@neduet.edu.pk') {
-      const defaultAdmin: User = {
-        ...INITIAL_USERS[0],
-        password: cleanPassword
-      };
-      updated = [...list, defaultAdmin];
     } else {
       updated = list;
     }
@@ -643,7 +676,6 @@ export function useAuth() {
     login,
     signup,
     logout,
-    switchRole,
     loginWithGoogle,
     loginOrSignupGoogleUser,
     requestPasswordReset,
@@ -1191,14 +1223,22 @@ export function useUsers() {
     return () => window.removeEventListener('spec_users_change', handleUsersChange);
   }, []);
 
-  const updateUserRole = (userId: string, newRole: Role) => {
+  const updateUserRole = (userId: string, newRole: Role): { success: boolean; error?: string } => {
     const list = getStoredUsers();
+    const target = list.find(u => u.id === userId);
+    if (!target) return { success: false, error: 'User not found.' };
+
+    if (target.isRootAdmin && newRole !== 'ADMIN') {
+      return { success: false, error: 'The Root Administrator cannot be demoted or revoked. Transfer Root Admin status first.' };
+    }
+
     const updated = list.map(u => u.id === userId ? { ...u, role: newRole } : u);
     saveUsers(updated);
     const current = getStoredCurrentUser();
     if (current && current.id === userId) {
       saveCurrentUser({ ...current, role: newRole });
     }
+    return { success: true };
   };
 
   const addAdminUser = (data: { name: string; email: string; password: string; department?: string; phoneNumber?: string }) => {
@@ -1216,6 +1256,7 @@ export function useUsers() {
       email: cleanEmail,
       password: data.password.trim(),
       role: 'ADMIN',
+      isRootAdmin: false,
       university: 'NED University of Engineering & Technology',
       department: data.department || 'Department of Electronic Engineering',
       studentId: 'FAC-' + Math.floor(100 + Math.random() * 900),
@@ -1248,11 +1289,17 @@ export function useUsers() {
       department?: string;
       phoneNumber?: string;
       studentId?: string;
-    }
+    },
+    requesterId?: string
   ): { success: boolean; error?: string } => {
     const list = getStoredUsers();
     const existing = list.find(u => u.id === userId);
     if (!existing) return { success: false, error: 'User account not found.' };
+
+    // Security check: Only the Root Admin can edit Root Admin profile/credentials
+    if (existing.isRootAdmin && requesterId && requesterId !== existing.id) {
+      return { success: false, error: 'Co-administrators are not permitted to alter Root Administrator credentials.' };
+    }
 
     if (data.email) {
       const cleanEmail = data.email.toLowerCase().trim();
@@ -1295,11 +1342,68 @@ export function useUsers() {
     return { success: true };
   };
 
-  const deleteUser = (userId: string) => {
+  const transferRootAdmin = (
+    newRootAdminId: string,
+    currentRootAdminId?: string
+  ): { success: boolean; error?: string } => {
     const list = getStoredUsers();
-    const updated = list.filter(u => u.id !== userId);
+    const activeUser = getStoredCurrentUser();
+    const callerId = currentRootAdminId || activeUser?.id;
+    const currentRoot = (callerId ? list.find(u => u.id === callerId && u.isRootAdmin) : null) || list.find(u => u.isRootAdmin);
+    if (!currentRoot) {
+      return { success: false, error: 'Only the active Root Administrator has clearance to transfer Root Admin status.' };
+    }
+
+    const targetAdmin = list.find(u => u.id === newRootAdminId);
+    if (!targetAdmin) {
+      return { success: false, error: 'Target administrator account not found.' };
+    }
+
+    if (targetAdmin.role !== 'ADMIN') {
+      return { success: false, error: 'Root status can only be transferred to an active administrator.' };
+    }
+
+    if (targetAdmin.id === currentRoot.id) {
+      return { success: false, error: 'Account is already the active Root Administrator.' };
+    }
+
+    const updated = list.map(u => {
+      if (u.id === targetAdmin.id) {
+        return { ...u, role: 'ADMIN' as Role, isRootAdmin: true };
+      }
+      if (u.id === currentRoot.id) {
+        return { ...u, isRootAdmin: false };
+      }
+      return { ...u, isRootAdmin: false };
+    });
+
     saveUsers(updated);
+
+    const active = getStoredCurrentUser();
+    if (active) {
+      if (active.id === currentRoot.id) {
+        saveCurrentUser({ ...active, isRootAdmin: false });
+      } else if (active.id === targetAdmin.id) {
+        saveCurrentUser({ ...active, isRootAdmin: true });
+      }
+    }
+
+    return { success: true };
   };
 
-  return { users, updateUserRole, addAdminUser, updateUserPassword, updateUserPasswordByEmail, updateUserDetails, deleteUser };
+  const deleteUser = (userId: string): { success: boolean; error?: string } => {
+    const list = getStoredUsers();
+    const target = list.find(u => u.id === userId);
+    if (!target) return { success: false, error: 'User not found.' };
+
+    if (target.isRootAdmin) {
+      return { success: false, error: 'The Root Administrator cannot be deleted under any circumstances.' };
+    }
+
+    const updated = list.filter(u => u.id !== userId);
+    saveUsers(updated);
+    return { success: true };
+  };
+
+  return { users, updateUserRole, addAdminUser, updateUserPassword, updateUserPasswordByEmail, updateUserDetails, transferRootAdmin, deleteUser };
 }

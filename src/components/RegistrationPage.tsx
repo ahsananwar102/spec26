@@ -109,6 +109,17 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ onNavigate, 
       setFileError('The selected file exceeds 5MB. Please upload an image under 5MB.');
       return;
     }
+
+    // Security: Validate file type and extension to prevent malicious uploads
+    const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    const allowedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'pdf'];
+
+    if (!allowedMimeTypes.includes(file.type.toLowerCase()) || !allowedExtensions.includes(extension)) {
+      setFileError('Invalid file format. Only PNG, JPG, JPEG, WEBP images or PDF files are allowed.');
+      return;
+    }
+
     setFileError('');
     setReceiptFile(file);
     setReceiptFileName(file.name);

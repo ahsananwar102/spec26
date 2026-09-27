@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth, useCompetitions, useRegistrations, useEventSettings, useUsers, useCategories, formatDisplayDate } from '../lib/store';
 import { Competition, Registration, Category, Format, RegStatus, RegistrationPhase, User, Role, CategoryItem, ContactMessage } from '../types';
 import { updateRegistrationStatus as updateStatusInDb, getContactMessages } from '../services/databaseService';
-import { isSupabaseConfigured, SUPABASE_URL, configureCustomSupabase, clearCustomSupabase } from '../lib/supabaseClient';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 const POPULAR_CATEGORY_ICONS = [
   { icon: 'memory', label: 'Electronics' },
@@ -28,7 +28,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const { competitions, addCompetition, updateCompetition, deleteCompetition, resetToDefault } = useCompetitions();
   const { registrations, updateRegistrationStatus, deleteRegistration } = useRegistrations();
   const { eventSettings, updateEventSettings } = useEventSettings();
-  const { users, updateUserRole, addAdminUser, updateUserPassword, updateUserDetails, deleteUser } = useUsers();
+  const { users, updateUserRole, addAdminUser, updateUserPassword, updateUserDetails, transferRootAdmin, deleteUser } = useUsers();
   const { categories, addCategory, updateCategory, deleteCategory, resetCategoriesToDefault } = useCategories();
 
   // Active Admin Sub-Tab
@@ -36,8 +36,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
   // Database Connection Modal State
   const [isDbConfigModalOpen, setIsDbConfigModalOpen] = useState(false);
-  const [customDbUrl, setCustomDbUrl] = useState(SUPABASE_URL || '');
-  const [customDbKey, setCustomDbKey] = useState('');
 
   // Contact Messages State
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
@@ -84,7 +82,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     studentId: '',
   });
   const [adminEditError, setAdminEditError] = useState<string | null>(null);
+  const [transferTargetAdmin, setTransferTargetAdmin] = useState<User | null>(null);
+  const [transferError, setTransferError] = useState<string | null>(null);
   const [roleActionToast, setRoleActionToast] = useState<string | null>(null);
+
+  const currentRootAdmin = useMemo(() => {
+    return users.find(u => u.isRootAdmin && u.role === 'ADMIN') || users.find(u => u.role === 'ADMIN');
+  }, [users]);
+
+  const isCurrentUserRootAdmin = Boolean(currentUser && currentRootAdmin && currentUser.id === currentRootAdmin.id);
 
   const adminUsers = useMemo(() => {
     return users.filter(u => u.role === 'ADMIN');
@@ -306,19 +312,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </button>
           </form>
 
-          {/* Quick evaluation helper */}
+          {/* Admin portal navigation actions */}
           <div className="pt-2 border-t border-outline-variant/20 flex flex-col items-center gap-3 text-xs">
-            {(() => {
-              const root = users.find(u => u.role === 'ADMIN' && (u.id === 'user-admin-1' || u.email === 'admin@neduet.edu.pk')) || users.find(u => u.role === 'ADMIN');
-              const displayEmail = root?.email || 'admin@neduet.edu.pk';
-              const displayPass = root?.password || 'admin123';
-              return (
-                <div className="flex items-center gap-2 text-outline font-code-md text-[11px]">
-                  <span className="material-symbols-outlined text-[14px]">vpn_key</span>
-                  <span>Root Admin: <strong className="text-secondary font-normal">{displayEmail}</strong> / <strong className="text-white font-normal">{displayPass}</strong></span>
-                </div>
-              );
-            })()}
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1501,8 +1496,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {adminUsers.map((admin) => {
-                const isRootAdmin = admin.id === 'user-admin-1' || admin.email === 'admin@neduet.edu.pk';
+                const isRootAdmin = admin.id === currentRootAdmin?.id;
                 const isCurrentSelf = currentUser?.id === admin.id;
+                // Only the Root Admin itself or Co-Admin can edit co-admins; Root admin can ONLY be edited by the root admin self
+                const canEditThisAdmin = !isRootAdmin || isCurrentUserRootAdmin;
 
                 return (
                   <div
@@ -1516,8 +1513,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                         </div>
                         <div className="flex flex-col items-end gap-1">
                           {isRootAdmin ? (
-                            <span className="text-[10px] font-code-md px-2 py-0.5 rounded bg-primary-container/20 text-primary-container font-bold uppercase border border-primary-container/40">
-                              Root Admin
+                            <span className="text-[10px] font-code-md px-2 py-0.5 rounded bg-primary-container/20 text-primary-container font-bold uppercase border border-primary-container/40 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[12px]">stars</span>
+                              <span>Root Admin</span>
                             </span>
                           ) : (
                             <span className="text-[10px] font-code-md px-2 py-0.5 rounded bg-secondary/20 text-secondary font-bold uppercase border border-secondary/40">
@@ -1538,74 +1536,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                       <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between text-[11px] font-code-md text-outline">
                         <span>ID: {admin.studentId || 'FAC-001'}</span>
-                        <span>Pass: {admin.password ? '••••••••' : 'Default'}</span>
+                        <span>Pass: {admin.password ? '••••••••' : 'Secured'}</span>
                       </div>
                     </div>
 
                     <div className="pt-2 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingAdminUser(admin);
-                            setAdminEditForm({
-                              name: admin.name || '',
-                              email: admin.email || '',
-                              password: admin.password || '',
-                              department: admin.department || '',
-                              phoneNumber: admin.phoneNumber || '',
-                              studentId: admin.studentId || '',
-                            });
-                            setAdminEditError(null);
-                          }}
-                          className="px-2.5 py-1.5 rounded bg-primary-container/20 hover:bg-primary-container/30 text-primary-container text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1 border border-primary-container/40"
-                          title="Edit administrator name, email, or credentials"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">edit</span>
-                          <span>Edit Details</span>
-                        </button>
+                        {canEditThisAdmin && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAdminUser(admin);
+                                setAdminEditForm({
+                                  name: admin.name || '',
+                                  email: admin.email || '',
+                                  password: admin.password || '',
+                                  department: admin.department || '',
+                                  phoneNumber: admin.phoneNumber || '',
+                                  studentId: admin.studentId || '',
+                                });
+                                setAdminEditError(null);
+                              }}
+                              className="px-2.5 py-1.5 rounded bg-primary-container/20 hover:bg-primary-container/30 text-primary-container text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1 border border-primary-container/40"
+                              title="Edit administrator name, email, or credentials"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">edit</span>
+                              <span>Edit</span>
+                            </button>
 
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newPass = prompt(`Set new security password for ${admin.name}:`, admin.password || 'admin123');
-                            if (newPass && newPass.trim().length >= 6) {
-                              updateUserPassword(admin.id, newPass.trim());
-                              setRoleActionToast(`Password updated for ${admin.name}!`);
-                              setTimeout(() => setRoleActionToast(null), 4000);
-                            } else if (newPass) {
-                              alert('Password must be at least 6 characters in length.');
-                            }
-                          }}
-                          className="px-2.5 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-xs text-on-surface font-code-md transition-colors cursor-pointer flex items-center gap-1"
-                          title="Change administrator password"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">lock_reset</span>
-                          <span>Change Pass</span>
-                        </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newPass = prompt(`Set new security password for ${admin.name}:`, admin.password || 'admin123');
+                                if (newPass && newPass.trim().length >= 6) {
+                                  updateUserPassword(admin.id, newPass.trim());
+                                  setRoleActionToast(`Password updated for ${admin.name}!`);
+                                  setTimeout(() => setRoleActionToast(null), 4000);
+                                } else if (newPass) {
+                                  alert('Password must be at least 6 characters in length.');
+                                }
+                              }}
+                              className="px-2.5 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-xs text-on-surface font-code-md transition-colors cursor-pointer flex items-center gap-1"
+                              title="Change administrator password"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">lock_reset</span>
+                              <span>Pass</span>
+                            </button>
+                          </>
+                        )}
                       </div>
 
-                      {!isRootAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (isCurrentSelf && adminUsers.length === 1) {
-                              alert('Cannot revoke privileges from the only remaining administrator.');
-                              return;
-                            }
-                            if (confirm(`Revoke administrative privileges from ${admin.name} (${admin.email})? They will become a standard USER.`)) {
-                              updateUserRole(admin.id, 'USER');
-                              setRoleActionToast(`Revoked admin privileges from ${admin.name}. Account is now regular USER.`);
-                              setTimeout(() => setRoleActionToast(null), 4000);
-                            }
-                          }}
-                          className="px-2.5 py-1.5 rounded bg-error/15 hover:bg-error/25 text-error text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1"
-                          title="Revoke admin privileges"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">person_remove</span>
-                          <span>Revoke Admin</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {/* Root Admin can transfer root ownership to a Co-Admin */}
+                        {isCurrentUserRootAdmin && !isRootAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTransferTargetAdmin(admin);
+                              setTransferError(null);
+                            }}
+                            className="px-2.5 py-1.5 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1 border border-amber-500/30"
+                            title="Make this administrator the Root Admin"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">stars</span>
+                            <span>Make Root Admin</span>
+                          </button>
+                        )}
+
+                        {!isRootAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Revoke administrative privileges from ${admin.name} (${admin.email})? They will become a standard USER.`)) {
+                                const res = updateUserRole(admin.id, 'USER');
+                                if (res && !res.success) {
+                                  alert(res.error || 'Failed to revoke administrator.');
+                                  return;
+                                }
+                                setRoleActionToast(`Revoked admin privileges from ${admin.name}. Account is now regular USER.`);
+                                setTimeout(() => setRoleActionToast(null), 4000);
+                              }
+                            }}
+                            className="px-2.5 py-1.5 rounded bg-error/15 hover:bg-error/25 text-error text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1"
+                            title="Revoke admin privileges"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">person_remove</span>
+                            <span>Revoke</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -1686,7 +1706,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       </td>
                       <td className="py-3 px-4 text-right">
                         {u.role === 'ADMIN' ? (
-                          u.email === 'admin@neduet.edu.pk' ? (
+                          (u.isRootAdmin || u.id === currentRootAdmin?.id) ? (
                             <span className="text-outline text-[11px] font-code-md">Protected Root</span>
                           ) : (
                             <button
@@ -1732,23 +1752,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
           </div>
 
-          {/* Section 3: Supabase Production Management Guide */}
-          <div className="p-6 rounded-xl bg-surface-container border border-outline-variant/30 space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary text-[20px]">database</span>
-              <h4 className="font-bold text-white text-sm">Managing Roles in Supabase Production</h4>
-            </div>
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              When your project is connected to Supabase in production, user authentication is managed via Supabase Auth. You can grant admin privileges to any user by updating their user metadata:
-            </p>
-            <div className="p-3 rounded bg-surface-container-lowest font-code-md text-xs text-primary space-y-1 overflow-x-auto">
-              <code>-- Run this in Supabase SQL Editor to grant admin role:</code>
-              <br />
-              <code className="text-white">
-                UPDATE auth.users SET raw_user_meta_data = raw_user_meta_data || '{`{"role": "ADMIN"}`}' WHERE email = 'co-admin@neduet.edu.pk';
-              </code>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1853,11 +1856,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       )}
 
       {/* ------------------------------------------------------------- */}
-      {/* MODAL: SUPABASE DATABASE CONNECTION CONFIGURATION */}
+      {/* MODAL: SUPABASE DATABASE CONNECTION STATUS */}
       {/* ------------------------------------------------------------- */}
       {isDbConfigModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl w-full max-w-lg p-6 sm:p-8 space-y-6 shadow-2xl relative">
+          <div className="bg-surface-container-low border border-outline-variant/40 rounded-2xl w-full max-w-md p-6 sm:p-8 space-y-6 shadow-2xl relative">
             <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4">
               <div className="flex items-center gap-2.5">
                 <span className={`w-3 h-3 rounded-full ${isSupabaseConfigured ? 'bg-green-400 animate-pulse' : 'bg-amber-400'}`}></span>
@@ -1872,87 +1875,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
 
             <div className="space-y-4">
-              <div className={`p-4 rounded-xl border text-xs leading-relaxed ${
+              <div className={`p-5 rounded-xl border text-xs leading-relaxed ${
                 isSupabaseConfigured
                   ? 'bg-green-500/10 border-green-500/30 text-green-300'
                   : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
               }`}>
                 {isSupabaseConfigured ? (
-                  <div>
-                    <strong>Connected to Live Database!</strong>
-                    <p className="mt-1 font-code-sm text-[11px] truncate text-white">URL: {SUPABASE_URL}</p>
-                    <p className="mt-1">All registrations, category edits, timeline phase changes, and contact messages synchronize in real time.</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sm text-green-400">
+                      <span className="material-symbols-outlined text-[20px]">cloud_done</span>
+                      <span>Connected &amp; Operational</span>
+                    </div>
+                    <p className="text-on-surface-variant">
+                      The application is securely connected to the central PostgreSQL production database cluster.
+                    </p>
+                    <div className="pt-2 border-t border-green-500/20 text-[11px] text-green-400/90 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[14px]">sync</span>
+                      <span>Registrations, event settings, and inquiries synchronize in real time.</span>
+                    </div>
                   </div>
                 ) : (
-                  <div>
-                    <strong>Operating in Local Standalone Mode.</strong>
-                    <p className="mt-1">Data is saving to this browser only. Enter your Supabase Project URL and Anon Key below to connect live PostgreSQL storage.</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-sm text-amber-400">
+                      <span className="material-symbols-outlined text-[20px]">cloud_off</span>
+                      <span>Local Storage Mode</span>
+                    </div>
+                    <p className="text-on-surface-variant">
+                      The application is currently operating using local browser persistence. Ensure deployment environment variables are configured in Netlify to connect the live PostgreSQL database.
+                    </p>
                   </div>
                 )}
               </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-code-md text-on-surface uppercase mb-1">
-                    Supabase Project URL
-                  </label>
-                  <input
-                    type="text"
-                    value={customDbUrl}
-                    onChange={(e) => setCustomDbUrl(e.target.value)}
-                    placeholder="https://xyzcompany.supabase.co"
-                    className="w-full px-3.5 py-2.5 bg-surface-container text-white text-xs font-code-md rounded-lg border border-outline-variant/40 focus:border-primary focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-code-md text-on-surface uppercase mb-1">
-                    Supabase Anon Public API Key
-                  </label>
-                  <input
-                    type="password"
-                    value={customDbKey}
-                    onChange={(e) => setCustomDbKey(e.target.value)}
-                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                    className="w-full px-3.5 py-2.5 bg-surface-container text-white text-xs font-code-md rounded-lg border border-outline-variant/40 focus:border-primary focus:outline-none"
-                  />
-                </div>
-              </div>
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-outline-variant/30">
-              {isSupabaseConfigured ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearCustomSupabase();
-                  }}
-                  className="text-xs text-error hover:underline font-code-md cursor-pointer"
-                >
-                  Clear Custom Credentials
-                </button>
-              ) : <div />}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDbConfigModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-on-surface-variant hover:text-white cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customDbUrl.trim() && customDbKey.trim()) {
-                      configureCustomSupabase(customDbUrl.trim(), customDbKey.trim());
-                    }
-                  }}
-                  disabled={!customDbUrl.trim() || !customDbKey.trim()}
-                  className="px-5 py-2 bg-primary-container text-on-primary-container font-semibold rounded-lg text-xs hover:bg-primary-fixed-dim disabled:opacity-50 cursor-pointer"
-                >
-                  Save &amp; Connect
-                </button>
-              </div>
+            <div className="flex items-center justify-end pt-2 border-t border-outline-variant/30">
+              <button
+                type="button"
+                onClick={() => setIsDbConfigModalOpen(false)}
+                className="px-5 py-2 bg-surface-container hover:bg-surface-container-high text-white font-semibold rounded-lg text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -2098,7 +2061,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                     Edit Administrator
                   </h3>
                   <p className="text-[11px] text-outline font-code-md">
-                    {editingAdminUser.id === 'user-admin-1' || editingAdminUser.email === 'admin@neduet.edu.pk' ? 'Root Administrator Profile' : 'Administrator Profile'}
+                    {editingAdminUser.isRootAdmin || editingAdminUser.id === currentRootAdmin?.id ? 'Root Administrator Profile' : 'Administrator Profile'}
                   </p>
                 </div>
               </div>
@@ -2171,7 +2134,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   Security Password / Passcode *
                 </label>
                 <input
-                  type="text"
+                  type="password"
                   required
                   value={adminEditForm.password}
                   onChange={(e) => setAdminEditForm(prev => ({ ...prev, password: e.target.value }))}
@@ -2233,6 +2196,84 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: TRANSFER ROOT ADMINISTRATOR OWNERSHIP */}
+      {/* ------------------------------------------------------------- */}
+      {transferTargetAdmin && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-surface-container-low border border-amber-500/40 rounded-xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">verified_user</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-headline-sm font-bold text-white">
+                    Transfer Root Admin
+                  </h3>
+                  <p className="text-[11px] text-outline font-code-md">
+                    Sole Governance Ownership Transfer
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setTransferTargetAdmin(null); setTransferError(null); }}
+                className="text-outline hover:text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {transferError && (
+              <div className="p-3 rounded bg-error/15 border border-error/30 text-error text-xs flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] shrink-0">error</span>
+                <span>{transferError}</span>
+              </div>
+            )}
+
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 leading-relaxed space-y-2">
+              <p className="font-bold text-amber-300">
+                Are you sure you want to transfer Root Administrator status?
+              </p>
+              <p>
+                You are about to promote <strong>{transferTargetAdmin.name}</strong> ({transferTargetAdmin.email}) to become the sole <strong>Root Administrator</strong>.
+              </p>
+              <p className="text-[11px] text-amber-200/80">
+                Your own account will immediately become a regular Co-Administrator. The new Root Admin will hold irrevocable governance authority.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant/30">
+              <button
+                type="button"
+                onClick={() => { setTransferTargetAdmin(null); setTransferError(null); }}
+                className="px-4 py-2 rounded bg-surface-container hover:bg-surface-container-high text-xs text-on-surface transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const res = transferRootAdmin(transferTargetAdmin.id);
+                  if (!res.success) {
+                    setTransferError(res.error || 'Failed to transfer root administrator status.');
+                    return;
+                  }
+                  setRoleActionToast(`Root Administrator privileges successfully transferred to ${transferTargetAdmin.name}!`);
+                  setTimeout(() => setRoleActionToast(null), 5000);
+                  setTransferTargetAdmin(null);
+                  setTransferError(null);
+                }}
+                className="px-5 py-2.5 rounded bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+              >
+                <span className="material-symbols-outlined text-[16px]">how_to_reg</span>
+                <span>Confirm &amp; Transfer Root</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -2516,14 +2557,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           src={selectedReg.receiptUrl}
                           alt="Payment Voucher Slip"
                           className="max-h-full max-w-full object-contain cursor-zoom-in"
-                          onClick={() => window.open(selectedReg.receiptUrl, '_blank')}
+                          onClick={() => {
+                            const url = selectedReg.receiptUrl;
+                            if (url && (url.startsWith('https://') || url.startsWith('http://') || url.startsWith('data:image/') || url.startsWith('data:application/pdf'))) {
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
                         />
                       </div>
                       <div className="flex items-center justify-between text-xs pt-1">
                         <span className="text-outline truncate max-w-xs">{selectedReg.receiptFileName || 'receipt.png'}</span>
                         <a
-                          href={selectedReg.receiptUrl}
+                          href={selectedReg.receiptUrl && (selectedReg.receiptUrl.startsWith('https://') || selectedReg.receiptUrl.startsWith('http://') || selectedReg.receiptUrl.startsWith('data:image/') || selectedReg.receiptUrl.startsWith('data:application/pdf')) ? selectedReg.receiptUrl : '#'}
                           download={selectedReg.receiptFileName || `voucher_${selectedReg.registrationId}.png`}
+                          rel="noopener noreferrer"
                           className="text-primary hover:underline text-xs flex items-center gap-1"
                         >
                           <span className="material-symbols-outlined text-[16px]">download</span>

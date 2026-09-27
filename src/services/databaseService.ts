@@ -114,6 +114,18 @@ export async function uploadReceipt(file: File): Promise<{
     return { url: null, path: null, error: 'Receipt file exceeds the 5MB size limit. Please upload a smaller image or compressed PDF.' };
   }
 
+  // Strict MIME type and extension validation
+  const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+  const ALLOWED_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
+  const fileExt = (file.name.split('.').pop() || '').toLowerCase();
+
+  if (
+    (file.type && !ALLOWED_MIME_TYPES.includes(file.type.toLowerCase())) ||
+    !ALLOWED_EXTS.includes(fileExt)
+  ) {
+    return { url: null, path: null, error: 'Invalid file format. Only JPG, PNG, WEBP, and PDF vouchers are permitted.' };
+  }
+
   if (supabase && isSupabaseReady) {
     try {
       const fileExt = file.name.split('.').pop() || 'png';

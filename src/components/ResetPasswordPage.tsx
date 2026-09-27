@@ -22,10 +22,8 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
   const [requestSuccess, setRequestSuccess] = useState(false);
   const [generatedLinkInfo, setGeneratedLinkInfo] = useState<{
     email: string;
-    resetLink: string;
     isSupabase: boolean;
   } | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Reset form state
   const [targetEmail, setTargetEmail] = useState('');
@@ -87,11 +85,10 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
       const result = await requestPasswordReset(emailInput);
       setRequestLoading(false);
 
-      if (result.success && result.resetLink) {
+      if (result.success) {
         setRequestSuccess(true);
         setGeneratedLinkInfo({
           email: emailInput.toLowerCase().trim(),
-          resetLink: result.resetLink,
           isSupabase: Boolean(result.isSupabase),
         });
       } else {
@@ -100,27 +97,6 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
     } catch (err: any) {
       setRequestLoading(false);
       setRequestError(err?.message || 'An unexpected error occurred. Please try again.');
-    }
-  };
-
-  // Copy simulated link to clipboard
-  const handleCopyLink = () => {
-    if (generatedLinkInfo?.resetLink) {
-      navigator.clipboard.writeText(generatedLinkInfo.resetLink);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 3000);
-    }
-  };
-
-  // Switch to reset form with the newly created link info
-  const handleOpenResetLinkDirectly = () => {
-    if (generatedLinkInfo) {
-      const params = new URLSearchParams(generatedLinkInfo.resetLink.split('?')[1] || '');
-      setTargetEmail(generatedLinkInfo.email);
-      setResetToken(params.get('token') || '');
-      setMode('reset');
-      setTokenInvalid(false);
-      setRequestSuccess(false);
     }
   };
 
@@ -277,41 +253,18 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
                 </div>
               ) : null}
 
-              {/* Direct Access Box for Immediate Testing & Local Dev */}
-              <div className="p-4 rounded-xl bg-surface-container-lowest/80 border border-primary-container/30 text-left space-y-3 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-code-md text-primary uppercase tracking-wider font-semibold">
-                    <span className="material-symbols-outlined text-[16px]">link</span>
-                    <span>Instant Direct Reset Link</span>
-                  </div>
-                  <span className="text-[10px] font-code-md px-2 py-0.5 rounded bg-primary-container/20 text-primary-container">
-                    Ready to Test
-                  </span>
+              {/* Secure Notification Notice */}
+              <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-left text-xs text-on-surface-variant space-y-2">
+                <div className="flex items-center gap-2 text-primary font-medium">
+                  <span className="material-symbols-outlined text-[16px]">security</span>
+                  <span>Security Notice</span>
                 </div>
-                <p className="text-xs text-on-surface-variant">
-                  Click below to open the password reset form directly, or copy the link:
+                <p>
+                  For account protection, password recovery instructions are dispatched directly to the registered email address. Please click the verification link inside your email to choose a new password.
                 </p>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleOpenResetLinkDirectly}
-                    className="flex-1 py-2.5 px-4 rounded bg-primary-container text-on-primary-container text-xs font-bold uppercase tracking-wider hover:bg-primary-fixed-dim transition-all flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.2)] cursor-pointer"
-                  >
-                    <span>Open Reset Password Link</span>
-                    <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopyLink}
-                    className="py-2.5 px-3 rounded bg-surface-container hover:bg-surface-container-high border border-outline-variant/40 text-xs text-on-surface transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                    title="Copy reset link"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">
-                      {linkCopied ? 'check' : 'content_copy'}
-                    </span>
-                    <span>{linkCopied ? 'Copied!' : 'Copy Link'}</span>
-                  </button>
-                </div>
+                <p className="text-[11px] text-outline">
+                  Didn't receive the email? Check your junk/spam folder or ensure you entered the exact email address used during registration.
+                </p>
               </div>
 
               <div className="pt-2 flex items-center justify-center gap-4 text-xs font-code-md">
