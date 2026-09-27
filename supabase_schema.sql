@@ -7,6 +7,18 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==============================================================================
+-- 0. LEGACY MIGRATION & CONSTRAINT CLEANUP
+-- Safely drop restrictive constraints from older schema iterations if they exist
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_category_check;
+ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_format_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_user_id_fkey;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_competition_id_fkey;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_payment_channel_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_status_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_participation_model_check;
+
+-- ==============================================================================
 -- TABLE: categories (Dynamic Competition Streams & Disciplines)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.categories (
@@ -133,68 +145,83 @@ ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
 -- 1. Categories: Public Read, Write for All
+DROP POLICY IF EXISTS "Allow public read on categories" ON public.categories;
 CREATE POLICY "Allow public read on categories"
     ON public.categories FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Allow write on categories" ON public.categories;
 CREATE POLICY "Allow write on categories"
     ON public.categories FOR ALL
     USING (true);
 
 -- 2. Event Settings: Public Read, Write for All
+DROP POLICY IF EXISTS "Allow public read on event_settings" ON public.event_settings;
 CREATE POLICY "Allow public read on event_settings"
     ON public.event_settings FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Allow write on event_settings" ON public.event_settings;
 CREATE POLICY "Allow write on event_settings"
     ON public.event_settings FOR ALL
     USING (true);
 
 -- 3. Competitions: Public Read Access
+DROP POLICY IF EXISTS "Allow public read on active competitions" ON public.competitions;
 CREATE POLICY "Allow public read on active competitions"
     ON public.competitions FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Allow admin full access on competitions" ON public.competitions;
 CREATE POLICY "Allow admin full access on competitions"
     ON public.competitions FOR ALL
     USING (true);
 
 -- 4. Registrations: Public Insert, Admin All
+DROP POLICY IF EXISTS "Allow anyone to submit registrations" ON public.registrations;
 CREATE POLICY "Allow anyone to submit registrations"
     ON public.registrations FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow users to read their registrations or admin view all" ON public.registrations;
 CREATE POLICY "Allow users to read their registrations or admin view all"
     ON public.registrations FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Allow admin to update registration status" ON public.registrations;
 CREATE POLICY "Allow admin to update registration status"
     ON public.registrations FOR UPDATE
     USING (true);
 
 -- 5. Team Members: Insert & Select
+DROP POLICY IF EXISTS "Allow insert of squad team members" ON public.team_members;
 CREATE POLICY "Allow insert of squad team members"
     ON public.team_members FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow view of squad team members" ON public.team_members;
 CREATE POLICY "Allow view of squad team members"
     ON public.team_members FOR SELECT
     USING (true);
 
 -- 6. Contact Messages: Public Insert
+DROP POLICY IF EXISTS "Allow public to send contact messages" ON public.contact_messages;
 CREATE POLICY "Allow public to send contact messages"
     ON public.contact_messages FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow admin to view contact messages" ON public.contact_messages;
 CREATE POLICY "Allow admin to view contact messages"
     ON public.contact_messages FOR SELECT
     USING (true);
 
 -- 7. Storage Policies for payment-receipts
+DROP POLICY IF EXISTS "Allow public read of receipts" ON storage.objects;
 CREATE POLICY "Allow public read of receipts"
     ON storage.objects FOR SELECT
     USING (bucket_id = 'payment-receipts');
 
+DROP POLICY IF EXISTS "Allow public upload of payment receipts" ON storage.objects;
 CREATE POLICY "Allow public upload of payment receipts"
     ON storage.objects FOR INSERT
     WITH CHECK (bucket_id = 'payment-receipts');

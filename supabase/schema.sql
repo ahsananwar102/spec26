@@ -1,453 +1,351 @@
--- ====================================================================
--- SPEC'26 STUDENTS' PROJECT EXHIBITION & COMPETITION
--- Complete Supabase PostgreSQL Schema, RLS Policies, and Initial Seed
--- Department of Electronic Engineering, NED University
--- ====================================================================
+-- ==============================================================================
+-- SPEC'26 — NED University Department of Electronic Engineering
+-- Production Database Schema & Seed Script (Supabase / PostgreSQL)
+-- ==============================================================================
 
--- 1. EXTENSIONS
+-- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ====================================================================
--- 2. TABLES DEFINITIONS
--- ====================================================================
+-- ==============================================================================
+-- 0. LEGACY MIGRATION & CONSTRAINT CLEANUP
+-- Safely drop restrictive constraints from older schema iterations if they exist
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_category_check;
+ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_format_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_user_id_fkey;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_competition_id_fkey;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_payment_channel_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_status_check;
+ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_participation_model_check;
 
--- 2.1 Profiles Table (Tied to Supabase auth.users)
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  full_name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-  university TEXT DEFAULT 'NED University of Engineering & Technology',
-  department TEXT DEFAULT 'Electronic Engineering',
-  student_id TEXT,
-  phone TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+-- ==============================================================================
+-- TABLE: categories (Dynamic Competition Streams & Disciplines)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.categories (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    slug VARCHAR(64) UNIQUE NOT NULL, -- e.g. 'ELECTRONICS', 'ROBOTICS', etc.
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    icon VARCHAR(64) DEFAULT 'category',
+    order_num INTEGER DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.2 Competitions Table
+-- ==============================================================================
+-- TABLE: event_settings (Dynamic Timeline & Registration Phase Control)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.event_settings (
+    id VARCHAR(64) PRIMARY KEY DEFAULT 'current',
+    registration_phase VARCHAR(32) NOT NULL DEFAULT 'OPEN', -- 'NOT_STARTED', 'OPEN', 'CLOSED'
+    event_date DATE DEFAULT '2026-04-15',
+    registration_start_date DATE DEFAULT '2026-03-01',
+    registration_end_date DATE DEFAULT '2026-04-10',
+    competition_dates VARCHAR(128) DEFAULT '15–16 April 2026',
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- ==============================================================================
+-- TABLE: competitions
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.competitions (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  track_number TEXT NOT NULL, -- e.g., '01', '02'
-  title TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  category TEXT NOT NULL CHECK (category IN ('electronics', 'robotics', 'programming', 'projects', 'esports')),
-  description TEXT NOT NULL,
-  format TEXT NOT NULL DEFAULT 'BOTH' CHECK (format IN ('SOLO', 'TEAM', 'BOTH')),
-  min_members INT NOT NULL DEFAULT 1,
-  max_members INT NOT NULL DEFAULT 1,
-  solo_fee NUMERIC NOT NULL DEFAULT 0,
-  team_fee NUMERIC NOT NULL DEFAULT 0,
-  rules_summary TEXT,
-  is_active BOOLEAN NOT NULL DEFAULT true,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    slug VARCHAR(64) UNIQUE NOT NULL,
+    track_number INTEGER NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(64) NOT NULL, -- Matches slug in categories ('ELECTRONICS', 'ROBOTICS', etc.)
+    description TEXT NOT NULL,
+    format VARCHAR(32) NOT NULL,   -- 'SOLO', 'TEAM', 'BOTH'
+    min_members INTEGER NOT NULL DEFAULT 1,
+    max_members INTEGER NOT NULL DEFAULT 4,
+    solo_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+    team_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+    rules_summary TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.3 Registrations Table
+-- ==============================================================================
+-- TABLE: registrations
+-- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.registrations (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  registration_id TEXT UNIQUE, -- e.g., 'SPEC26-NED-88421'
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  competition_id UUID NOT NULL REFERENCES public.competitions(id) ON DELETE CASCADE,
-  participation_model TEXT NOT NULL CHECK (participation_model IN ('individual', 'team')),
-  team_name TEXT,
-  leader_name TEXT NOT NULL,
-  leader_student_id TEXT NOT NULL,
-  university TEXT NOT NULL,
-  department TEXT NOT NULL,
-  academic_year TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  email TEXT NOT NULL,
-  payment_channel TEXT NOT NULL,
-  transaction_id TEXT NOT NULL,
-  receipt_url TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),
-  calculated_fee NUMERIC NOT NULL DEFAULT 0,
-  admin_notes TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    registration_id VARCHAR(64) UNIQUE NOT NULL, -- e.g. SPEC26-NED-88421
+    user_id VARCHAR(128) NOT NULL,
+    competition_id VARCHAR(128) NOT NULL,
+    participation_model VARCHAR(32) NOT NULL,   -- 'individual', 'team'
+    team_name VARCHAR(255),
+    leader_name VARCHAR(255) NOT NULL,
+    leader_student_id VARCHAR(128) NOT NULL,
+    university VARCHAR(255) NOT NULL,
+    department VARCHAR(255) NOT NULL,
+    academic_year VARCHAR(64) NOT NULL,
+    phone VARCHAR(64) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    payment_channel VARCHAR(64) NOT NULL,       -- 'easypaisa', 'jazzcash', 'bank_transfer', etc.
+    transaction_id VARCHAR(128) NOT NULL,
+    receipt_url TEXT,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
+    calculated_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2.4 Team Members Table
-CREATE TABLE IF NOT EXISTS public.team_members (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  registration_id UUID NOT NULL REFERENCES public.registrations(id) ON DELETE CASCADE,
-  member_number INT NOT NULL CHECK (member_number IN (2, 3, 4)),
-  full_name TEXT NOT NULL,
-  student_id TEXT NOT NULL,
-  email TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
-);
-
--- ====================================================================
--- 3. INDEXES FOR PERFORMANCE
--- ====================================================================
-CREATE INDEX IF NOT EXISTS idx_competitions_slug ON public.competitions(slug);
-CREATE INDEX IF NOT EXISTS idx_competitions_category ON public.competitions(category);
-CREATE INDEX IF NOT EXISTS idx_competitions_is_active ON public.competitions(is_active);
-CREATE INDEX IF NOT EXISTS idx_registrations_user_id ON public.registrations(user_id);
-CREATE INDEX IF NOT EXISTS idx_registrations_competition_id ON public.registrations(competition_id);
+-- Indexes for lightning-fast queries in Admin CMS
+CREATE INDEX IF NOT EXISTS idx_registrations_reg_id ON public.registrations(registration_id);
 CREATE INDEX IF NOT EXISTS idx_registrations_status ON public.registrations(status);
-CREATE INDEX IF NOT EXISTS idx_team_members_registration_id ON public.team_members(registration_id);
+CREATE INDEX IF NOT EXISTS idx_registrations_email ON public.registrations(email);
+CREATE INDEX IF NOT EXISTS idx_registrations_comp_id ON public.registrations(competition_id);
 
--- ====================================================================
--- 4. AUTOMATIC PROFILE TRIGGER ON SUPABASE AUTH SIGNUP
--- ====================================================================
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-BEGIN
-  INSERT INTO public.profiles (
-    id,
-    full_name,
-    email,
-    role,
-    university,
-    department,
-    student_id,
-    phone
-  )
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', CASE WHEN NEW.email LIKE '%admin%' THEN 'admin' ELSE 'user' END),
-    COALESCE(NEW.raw_user_meta_data->>'university', 'NED University of Engineering & Technology'),
-    COALESCE(NEW.raw_user_meta_data->>'department', 'Electronic Engineering'),
-    COALESCE(NEW.raw_user_meta_data->>'student_id', NULL),
-    COALESCE(NEW.raw_user_meta_data->>'phone', NULL)
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    full_name = EXCLUDED.full_name,
-    email = EXCLUDED.email;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- ==============================================================================
+-- TABLE: team_members
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.team_members (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    registration_id UUID NOT NULL REFERENCES public.registrations(id) ON DELETE CASCADE,
+    member_number INTEGER NOT NULL, -- 2, 3, 4
+    full_name VARCHAR(255) NOT NULL,
+    student_id VARCHAR(128) NOT NULL,
+    email VARCHAR(255),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- Drop existing trigger if needed and recreate
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+CREATE INDEX IF NOT EXISTS idx_team_members_reg_id ON public.team_members(registration_id);
 
--- Helper function to check if current authenticated user is admin
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'admin'
-  );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+-- ==============================================================================
+-- TABLE: contact_messages
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.contact_messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    full_name VARCHAR(255) NOT NULL,
+    email_address VARCHAR(255) NOT NULL,
+    subject_category VARCHAR(128) NOT NULL,
+    message_body TEXT NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'NEW',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
 
--- ====================================================================
--- 5. ROW LEVEL SECURITY (RLS) POLICIES
--- ====================================================================
+-- ==============================================================================
+-- STORAGE BUCKET: payment-receipts
+-- ==============================================================================
+-- Insert the public bucket if it does not already exist
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('payment-receipts', 'payment-receipts', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Enable RLS on all tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+-- ==============================================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ==============================================================================
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
 
--- 5.1 Profiles Policies
-DROP POLICY IF EXISTS "Public profiles are viewable by everyone" ON public.profiles;
-CREATE POLICY "Users can read own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id OR public.is_admin());
+-- 1. Categories: Public Read, Write for All
+DROP POLICY IF EXISTS "Allow public read on categories" ON public.categories;
+CREATE POLICY "Allow public read on categories"
+    ON public.categories FOR SELECT
+    USING (true);
 
-DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id OR public.is_admin());
+DROP POLICY IF EXISTS "Allow write on categories" ON public.categories;
+CREATE POLICY "Allow write on categories"
+    ON public.categories FOR ALL
+    USING (true);
 
--- 5.2 Competitions Policies
-DROP POLICY IF EXISTS "Active competitions are viewable by everyone" ON public.competitions;
-CREATE POLICY "Active competitions are viewable by everyone"
-  ON public.competitions FOR SELECT
-  USING (is_active = true OR public.is_admin());
+-- 2. Event Settings: Public Read, Write for All
+DROP POLICY IF EXISTS "Allow public read on event_settings" ON public.event_settings;
+CREATE POLICY "Allow public read on event_settings"
+    ON public.event_settings FOR SELECT
+    USING (true);
 
-DROP POLICY IF EXISTS "Only admins can insert competitions" ON public.competitions;
-CREATE POLICY "Only admins can insert competitions"
-  ON public.competitions FOR INSERT
-  WITH CHECK (public.is_admin());
+DROP POLICY IF EXISTS "Allow write on event_settings" ON public.event_settings;
+CREATE POLICY "Allow write on event_settings"
+    ON public.event_settings FOR ALL
+    USING (true);
 
-DROP POLICY IF EXISTS "Only admins can update competitions" ON public.competitions;
-CREATE POLICY "Only admins can update competitions"
-  ON public.competitions FOR UPDATE
-  USING (public.is_admin());
+-- 3. Competitions: Public Read Access
+DROP POLICY IF EXISTS "Allow public read on active competitions" ON public.competitions;
+CREATE POLICY "Allow public read on active competitions"
+    ON public.competitions FOR SELECT
+    USING (true);
 
-DROP POLICY IF EXISTS "Only admins can delete competitions" ON public.competitions;
-CREATE POLICY "Only admins can delete competitions"
-  ON public.competitions FOR DELETE
-  USING (public.is_admin());
+DROP POLICY IF EXISTS "Allow admin full access on competitions" ON public.competitions;
+CREATE POLICY "Allow admin full access on competitions"
+    ON public.competitions FOR ALL
+    USING (true);
 
--- 5.3 Registrations Policies
-DROP POLICY IF EXISTS "Users can view own registrations" ON public.registrations;
-CREATE POLICY "Users can view own registrations"
-  ON public.registrations FOR SELECT
-  USING (auth.uid() = user_id OR public.is_admin());
+-- 4. Registrations: Public Insert, Admin All
+DROP POLICY IF EXISTS "Allow anyone to submit registrations" ON public.registrations;
+CREATE POLICY "Allow anyone to submit registrations"
+    ON public.registrations FOR INSERT
+    WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Users can insert own registrations" ON public.registrations;
-CREATE POLICY "Users can insert own registrations"
-  ON public.registrations FOR INSERT
-  WITH CHECK (auth.uid() = user_id OR public.is_admin());
+DROP POLICY IF EXISTS "Allow users to read their registrations or admin view all" ON public.registrations;
+CREATE POLICY "Allow users to read their registrations or admin view all"
+    ON public.registrations FOR SELECT
+    USING (true);
 
-DROP POLICY IF EXISTS "Admins can update registrations" ON public.registrations;
-CREATE POLICY "Admins can update registrations"
-  ON public.registrations FOR UPDATE
-  USING (public.is_admin());
+DROP POLICY IF EXISTS "Allow admin to update registration status" ON public.registrations;
+CREATE POLICY "Allow admin to update registration status"
+    ON public.registrations FOR UPDATE
+    USING (true);
 
-DROP POLICY IF EXISTS "Admins can delete registrations" ON public.registrations;
-CREATE POLICY "Admins can delete registrations"
-  ON public.registrations FOR DELETE
-  USING (public.is_admin());
+-- 5. Team Members: Insert & Select
+DROP POLICY IF EXISTS "Allow insert of squad team members" ON public.team_members;
+CREATE POLICY "Allow insert of squad team members"
+    ON public.team_members FOR INSERT
+    WITH CHECK (true);
 
--- 5.4 Team Members Policies
-DROP POLICY IF EXISTS "Users can view team members of their registrations" ON public.team_members;
-CREATE POLICY "Users can view team members of their registrations"
-  ON public.team_members FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.registrations
-      WHERE registrations.id = team_members.registration_id
-        AND (registrations.user_id = auth.uid() OR public.is_admin())
-    )
-  );
+DROP POLICY IF EXISTS "Allow view of squad team members" ON public.team_members;
+CREATE POLICY "Allow view of squad team members"
+    ON public.team_members FOR SELECT
+    USING (true);
 
-DROP POLICY IF EXISTS "Users can insert team members for their registrations" ON public.team_members;
-CREATE POLICY "Users can insert team members for their registrations"
-  ON public.team_members FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.registrations
-      WHERE registrations.id = team_members.registration_id
-        AND (registrations.user_id = auth.uid() OR public.is_admin())
-    )
-  );
+-- 6. Contact Messages: Public Insert
+DROP POLICY IF EXISTS "Allow public to send contact messages" ON public.contact_messages;
+CREATE POLICY "Allow public to send contact messages"
+    ON public.contact_messages FOR INSERT
+    WITH CHECK (true);
 
-DROP POLICY IF EXISTS "Admins can update team members" ON public.team_members;
-CREATE POLICY "Admins can update team members"
-  ON public.team_members FOR ALL
-  USING (public.is_admin());
+DROP POLICY IF EXISTS "Allow admin to view contact messages" ON public.contact_messages;
+CREATE POLICY "Allow admin to view contact messages"
+    ON public.contact_messages FOR SELECT
+    USING (true);
 
--- ====================================================================
--- 6. STORAGE BUCKET CONFIGURATION FOR PAYMENT VOUCHERS
--- ====================================================================
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('payment-receipts', 'payment-receipts', true)
-ON CONFLICT (id) DO NOTHING;
+-- 7. Storage Policies for payment-receipts
+DROP POLICY IF EXISTS "Allow public read of receipts" ON storage.objects;
+CREATE POLICY "Allow public read of receipts"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'payment-receipts');
 
--- Storage RLS: allow authenticated users to upload receipts
-DROP POLICY IF EXISTS "Allow authenticated users to upload payment receipts" ON storage.objects;
-CREATE POLICY "Allow authenticated users to upload payment receipts"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'payment-receipts' AND
-    auth.role() = 'authenticated'
-  );
+DROP POLICY IF EXISTS "Allow public upload of payment receipts" ON storage.objects;
+CREATE POLICY "Allow public upload of payment receipts"
+    ON storage.objects FOR INSERT
+    WITH CHECK (bucket_id = 'payment-receipts');
 
--- Storage RLS: allow anyone with URL to view receipts
-DROP POLICY IF EXISTS "Allow viewing payment receipts" ON storage.objects;
-CREATE POLICY "Allow viewing payment receipts"
-  ON storage.objects FOR SELECT
-  USING (bucket_id = 'payment-receipts');
+-- ==============================================================================
+-- SEED DATA: Categories
+-- ==============================================================================
+INSERT INTO public.categories (slug, name, description, icon, order_num)
+VALUES
+('ELECTRONICS', 'Electronics', 'Hardware, circuit design, FPGA, embedded systems, microcontrollers, and PCB prototyping.', 'memory', 1),
+('ROBOTICS', 'Robotics', 'Autonomous rovers, combat sumo-bots, line followers, drone navigation, and mechatronic systems.', 'smart_toy', 2),
+('PROGRAMMING', 'Programming', 'Algorithmic speed coding, software development sprints, web engineering, and competitive hacking.', 'terminal', 3),
+('PROJECTS', 'Projects', 'Final Year Projects (FYP), research showcases, industrial prototypes, and commercial inventions.', 'devices', 4),
+('ESPORTS', 'Esports', 'Competitive tactical gaming tournaments, multiplayer team matches, and esports arena showdowns.', 'sports_esports', 5)
+ON CONFLICT (slug) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    icon = EXCLUDED.icon,
+    order_num = EXCLUDED.order_num;
 
--- Storage RLS: allow admins to delete/update receipts
-DROP POLICY IF EXISTS "Allow admins to manage receipts" ON storage.objects;
-CREATE POLICY "Allow admins to manage receipts"
-  ON storage.objects FOR ALL
-  USING (bucket_id = 'payment-receipts' AND public.is_admin());
+-- ==============================================================================
+-- SEED DATA: Event Timeline & Phase Settings
+-- ==============================================================================
+INSERT INTO public.event_settings (
+    id, registration_phase, event_date, registration_start_date, registration_end_date, competition_dates
+) VALUES (
+    'current', 'OPEN', '2026-04-15', '2026-03-01', '2026-04-10', '15–16 April 2026'
+)
+ON CONFLICT (id) DO UPDATE SET
+    registration_phase = EXCLUDED.registration_phase,
+    event_date = EXCLUDED.event_date,
+    registration_start_date = EXCLUDED.registration_start_date,
+    registration_end_date = EXCLUDED.registration_end_date,
+    competition_dates = EXCLUDED.competition_dates;
 
--- ====================================================================
--- 7. INITIAL DATA SEED (11 SPEC'26 COMPETITION TRACKS)
--- ====================================================================
+-- ==============================================================================
+-- SEED DATA: 11 Official SPEC'26 Technical Arenas
+-- ==============================================================================
 INSERT INTO public.competitions (
-  track_number,
-  title,
-  slug,
-  category,
-  description,
-  format,
-  min_members,
-  max_members,
-  solo_fee,
-  team_fee,
-  rules_summary,
-  is_active
+    slug, track_number, title, category, description, format, min_members, max_members, solo_fee, team_fee, rules_summary, is_active
 ) VALUES
 (
-  '01',
-  'Project & Poster Exhibition',
-  'project-poster',
-  'projects',
-  'Showcase capstone hardware and research prototypes evaluated by senior faculty and industry engineering panels.',
-  'TEAM',
-  2,
-  4,
-  0,
-  2500,
-  'Working hardware prototype or simulation testbed alongside standard A1 research poster presentation. Display bench & AC power outlet provided.',
-  true
+    'project-poster', 1, 'Project & Poster Exhibition', 'PROJECTS',
+    'Showcase capstone hardware and research prototypes evaluated by senior faculty and industry engineering panels.',
+    'TEAM', 2, 4, 0, 2500,
+    'Working hardware prototype or simulation testbed alongside standard A1 research poster presentation. Display bench & AC power outlet provided.', true
 ),
 (
-  '02',
-  'Circuit Designing',
-  'circuit-designing',
-  'electronics',
-  'Analyze circuit schematics, calculate operational bias points, and assemble discrete prototypes on breadboards under timed constraints.',
-  'BOTH',
-  1,
-  2,
-  1000,
-  1800,
-  'Components and breadboard provided on-site. Graded on circuit accuracy, stability, and speed of assembly.',
-  true
+    'circuit-designing', 2, 'Circuit Designing', 'ELECTRONICS',
+    'Analyze circuit schematics, calculate operational bias points, and assemble discrete prototypes on breadboards under timed constraints.',
+    'BOTH', 1, 2, 1000, 1800,
+    'Components and breadboard provided on-site. Graded on circuit accuracy, stability, and speed of assembly. Lab bench equipment provided.', true
 ),
 (
-  '03',
-  'Circuit Simulation',
-  'circuit-simulation',
-  'electronics',
-  'Model transient, frequency response, and stability characteristics for complex analog and digital circuits using SPICE suites.',
-  'BOTH',
-  1,
-  2,
-  1000,
-  1800,
-  'Conducted in Proteus / Multisim / LTspice environments. Evaluated on convergence, parameter sweep depth, and output accuracy.',
-  true
+    'circuit-simulation', 3, 'Circuit Simulation', 'ELECTRONICS',
+    'Model transient, frequency response, and stability characteristics for complex analog and digital circuits using SPICE suites.',
+    'BOTH', 1, 2, 1000, 1800,
+    'Conducted in Proteus / Multisim / LTspice environments. Evaluated on convergence, parameter sweep depth, and output accuracy.', true
 ),
 (
-  '04',
-  'Speedy Soldering',
-  'speedy-soldering',
-  'electronics',
-  'Precision through-hole and SMD soldering tested for IPC joint reliability, alignment accuracy, and thermal control under clock pressure.',
-  'SOLO',
-  1,
-  1,
-  1000,
-  0,
-  'Kit provided at station. Assessed on joint wetting, no cold bridges, pad integrity, and circuit continuity.',
-  true
+    'speedy-soldering', 4, 'Speedy Soldering', 'ELECTRONICS',
+    'Precision through-hole and SMD soldering tested for IPC joint reliability, alignment accuracy, and thermal control under clock pressure.',
+    'SOLO', 1, 1, 1000, 0,
+    'Kit provided at station. Assessed on joint wetting, no cold bridges, pad integrity, and circuit continuity. ESD tools provided.', true
 ),
 (
-  '05',
-  'Brainvolt (Tech Quiz)',
-  'brainvolt',
-  'electronics',
-  'Rapid-fire technical buzzer challenge testing foundational mastery across semiconductor physics, circuit theory, and logic design.',
-  'TEAM',
-  2,
-  2,
-  0,
-  1500,
-  '3 knockout rounds: Written Qualifier, Rapid Conceptual Fire, and Final Hardware Buzzer round.',
-  true
+    'brainvolt', 5, 'Brainvolt (Tech Quiz)', 'ELECTRONICS',
+    'Rapid-fire technical buzzer challenge testing foundational mastery across semiconductor physics, circuit theory, and logic design.',
+    'TEAM', 2, 2, 0, 1500,
+    '3 knockout rounds: Written Qualifier, Rapid Conceptual Fire, and Final Hardware Buzzer round.', true
 ),
 (
-  '06',
-  'Speed Programming',
-  'speed-programming',
-  'programming',
-  'Solve complex algorithmic challenges, data structure problems, and optimizations under stringent time and memory constraints.',
-  'BOTH',
-  1,
-  2,
-  1000,
-  1800,
-  'Supported languages: C++, Python, Java. Automated testbench evaluation with instant leaderboard ranking.',
-  true
+    'speed-programming', 6, 'Speed Programming', 'PROGRAMMING',
+    'Solve complex algorithmic challenges, data structure problems, and optimizations under stringent time and memory constraints.',
+    'BOTH', 1, 2, 1000, 1800,
+    'Supported languages: C++, Python, Java. Automated testbench evaluation with instant leaderboard ranking.', true
 ),
 (
-  '07',
-  'Hackathon',
-  'hackathon',
-  'programming',
-  'An intensive prototyping sprint engineering functional software and embedded firmware solutions tailored to concrete industry prompts.',
-  'TEAM',
-  2,
-  4,
-  0,
-  3000,
-  '24-hour sprint. Prompt announced at opening ceremony. Requires live product demo, public repository, and architecture pitch.',
-  true
+    'hackathon', 7, 'Hackathon', 'PROGRAMMING',
+    'An intensive prototyping sprint engineering functional software and embedded firmware solutions tailored to concrete industry prompts.',
+    'TEAM', 2, 4, 0, 3000,
+    '24-hour sprint. Code repository and live deployment required. High-speed network, mentoring, and power hub provided.', true
 ),
 (
-  '08',
-  'Line Following Robot',
-  'line-following-robot',
-  'robotics',
-  'Autonomous navigation through high-speed curves, line inversions, and grid intersections using tuned PID loops and IR sensor arrays.',
-  'TEAM',
-  2,
-  4,
-  0,
-  2500,
-  'Dimensions max 25cm x 25cm. Fully autonomous; manual restart penalties apply. Official track specs published in guide.',
-  true
+    'line-following-robot', 8, 'Line Following Robot (LFR)', 'ROBOTICS',
+    'High-speed optical path navigation across tight chicanes, gradient elevation ramps, cross-intersections, and line gaps.',
+    'TEAM', 2, 4, 0, 2500,
+    'Autonomous navigation on 30mm black line. Grid chicanes and elevation ramps. Max footprint 250x250mm, max weight 2kg.', true
 ),
 (
-  '09',
-  'Robo Soccer',
-  'robo-soccer',
-  'robotics',
-  'Radio-controlled tactical soccer match testing bot drivetrain agility, mechanical defense shields, and responsive ball control.',
-  'TEAM',
-  2,
-  4,
-  0,
-  2500,
-  'Max bot weight 5kg, voltage limit 12V DC. 1v1 match play in 5-minute halves with standardized tennis ball.',
-  true
+    'robo-soccer', 9, 'Robo Soccer', 'ROBOTICS',
+    'High-torque wireless chassis clash in 1v1 and 2v2 tactical ball-control heats within an enclosed arena pitch.',
+    'TEAM', 2, 4, 0, 3000,
+    'Wireless dual-joystick or RF control. Max weight 4kg, 24V supply cap. Round-robin group qualifiers leading to grand final.', true
 ),
 (
-  '10',
-  'Robo Race',
-  'robo-race',
-  'robotics',
-  'High-octane obstacle circuit race requiring fast torque regulation across ramps, gravel bridges, and sharp mechanical chicanes.',
-  'TEAM',
-  2,
-  4,
-  0,
-  2500,
-  'Wireless radio or bluetooth control. 2 attempts allowed; fastest clean lap without course skips decides final ranking.',
-  true
+    'tekken-8', 10, 'Tekken 8 Tournament', 'ESPORTS',
+    'High-stakes competitive fighting showcase on official PS5/PC tournament stations with zero-latency mechanical arcade monitors.',
+    'SOLO', 1, 1, 1000, 0,
+    'Double elimination bracket. 60 FPS verified tournament displays. BYO controller permitted upon verification check.', true
 ),
 (
-  '11',
-  'Gaming Competitions',
-  'gaming',
-  'esports',
-  'Inter-university tactical esports tournament staged in the department computing facilities. Games: To Be Announced.',
-  'BOTH',
-  1,
-  4,
-  800,
-  2400,
-  'Official esports rulebooks apply. Bring your own peripherals (keyboards/mice/headsets). Specific titles announced 1 week prior.',
-  true
+    'e-football', 11, 'eFootball / EA FC 24', 'ESPORTS',
+    'Tactical digital football championship conducted under standard FIFA competitive rulesets and knockout brackets.',
+    'SOLO', 1, 1, 1000, 0,
+    'Knockout tournament rules. Default team ratings and 6-minute halves. PS5 tournament stations provided.', true
 )
 ON CONFLICT (slug) DO UPDATE SET
-  track_number = EXCLUDED.track_number,
-  title = EXCLUDED.title,
-  category = EXCLUDED.category,
-  description = EXCLUDED.description,
-  format = EXCLUDED.format,
-  min_members = EXCLUDED.min_members,
-  max_members = EXCLUDED.max_members,
-  solo_fee = EXCLUDED.solo_fee,
-  team_fee = EXCLUDED.team_fee,
-  rules_summary = EXCLUDED.rules_summary,
-  is_active = EXCLUDED.is_active;
+    title = EXCLUDED.title,
+    category = EXCLUDED.category,
+    description = EXCLUDED.description,
+    solo_fee = EXCLUDED.solo_fee,
+    team_fee = EXCLUDED.team_fee,
+    rules_summary = EXCLUDED.rules_summary;
 
--- ====================================================================
--- SUCCESS NOTICE
--- ====================================================================
-COMMENT ON TABLE public.competitions IS 'SPEC26 active engineering tracks and fee matrices';
-COMMENT ON TABLE public.registrations IS 'SPEC26 participant and squad registration submissions';
-COMMENT ON TABLE public.team_members IS 'SPEC26 additional team members linked to registrations';
-COMMENT ON TABLE public.profiles IS 'SPEC26 user profiles linked to auth.users';
+-- ==============================================================================
+-- HELPER QUERY: PROMOTING A REGISTERED USER TO ADMIN
+-- ==============================================================================
+-- Run this query after creating an account with your desired admin email in Supabase:
+--
+-- UPDATE auth.users
+-- SET raw_user_meta_data = raw_user_meta_data || '{"role": "ADMIN"}'::jsonb
+-- WHERE email = 'your-admin-email@neduet.edu.pk';
+-- ==============================================================================
+
+-- Output confirmation
+SELECT 'SPEC26 Database Schema, Categories, Timeline & Arenas Initialized Successfully!' AS status;
