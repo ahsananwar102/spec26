@@ -28,7 +28,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
   const { competitions, addCompetition, updateCompetition, deleteCompetition, resetToDefault } = useCompetitions();
   const { registrations, updateRegistrationStatus, deleteRegistration } = useRegistrations();
   const { eventSettings, updateEventSettings } = useEventSettings();
-  const { users, updateUserRole, addAdminUser, updateUserPassword, deleteUser } = useUsers();
+  const { users, updateUserRole, addAdminUser, updateUserPassword, updateUserDetails, deleteUser } = useUsers();
   const { categories, addCategory, updateCategory, deleteCategory, resetCategoriesToDefault } = useCategories();
 
   // Active Admin Sub-Tab
@@ -74,6 +74,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     department: 'Department of Electronic Engineering',
     phoneNumber: ''
   });
+  const [editingAdminUser, setEditingAdminUser] = useState<User | null>(null);
+  const [adminEditForm, setAdminEditForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    department: 'Department of Electronic Engineering',
+    phoneNumber: '',
+    studentId: '',
+  });
+  const [adminEditError, setAdminEditError] = useState<string | null>(null);
   const [roleActionToast, setRoleActionToast] = useState<string | null>(null);
 
   const adminUsers = useMemo(() => {
@@ -298,10 +308,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
           {/* Quick evaluation helper */}
           <div className="pt-2 border-t border-outline-variant/20 flex flex-col items-center gap-3 text-xs">
-            <div className="flex items-center gap-2 text-outline font-code-md text-[11px]">
-              <span className="material-symbols-outlined text-[14px]">vpn_key</span>
-              <span>Authorized Credential: admin@neduet.edu.pk / admin123</span>
-            </div>
+            {(() => {
+              const root = users.find(u => u.role === 'ADMIN' && (u.id === 'user-admin-1' || u.email === 'admin@neduet.edu.pk')) || users.find(u => u.role === 'ADMIN');
+              const displayEmail = root?.email || 'admin@neduet.edu.pk';
+              const displayPass = root?.password || 'admin123';
+              return (
+                <div className="flex items-center gap-2 text-outline font-code-md text-[11px]">
+                  <span className="material-symbols-outlined text-[14px]">vpn_key</span>
+                  <span>Root Admin: <strong className="text-secondary font-normal">{displayEmail}</strong> / <strong className="text-white font-normal">{displayPass}</strong></span>
+                </div>
+              );
+            })()}
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -1484,7 +1501,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {adminUsers.map((admin) => {
-                const isRootAdmin = admin.email === 'admin@neduet.edu.pk';
+                const isRootAdmin = admin.id === 'user-admin-1' || admin.email === 'admin@neduet.edu.pk';
                 const isCurrentSelf = currentUser?.id === admin.id;
 
                 return (
@@ -1525,25 +1542,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       </div>
                     </div>
 
-                    <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newPass = prompt(`Set new security password for ${admin.name}:`, admin.password || 'admin123');
-                          if (newPass && newPass.trim().length >= 6) {
-                            updateUserPassword(admin.id, newPass.trim());
-                            setRoleActionToast(`Password updated for ${admin.name}!`);
-                            setTimeout(() => setRoleActionToast(null), 4000);
-                          } else if (newPass) {
-                            alert('Password must be at least 6 characters in length.');
-                          }
-                        }}
-                        className="px-2.5 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-xs text-on-surface font-code-md transition-colors cursor-pointer flex items-center gap-1"
-                        title="Change administrator password"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">lock_reset</span>
-                        <span>Change Pass</span>
-                      </button>
+                    <div className="pt-2 border-t border-outline-variant/20 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAdminUser(admin);
+                            setAdminEditForm({
+                              name: admin.name || '',
+                              email: admin.email || '',
+                              password: admin.password || '',
+                              department: admin.department || '',
+                              phoneNumber: admin.phoneNumber || '',
+                              studentId: admin.studentId || '',
+                            });
+                            setAdminEditError(null);
+                          }}
+                          className="px-2.5 py-1.5 rounded bg-primary-container/20 hover:bg-primary-container/30 text-primary-container text-xs font-code-md transition-colors cursor-pointer flex items-center gap-1 border border-primary-container/40"
+                          title="Edit administrator name, email, or credentials"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit</span>
+                          <span>Edit Details</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newPass = prompt(`Set new security password for ${admin.name}:`, admin.password || 'admin123');
+                            if (newPass && newPass.trim().length >= 6) {
+                              updateUserPassword(admin.id, newPass.trim());
+                              setRoleActionToast(`Password updated for ${admin.name}!`);
+                              setTimeout(() => setRoleActionToast(null), 4000);
+                            } else if (newPass) {
+                              alert('Password must be at least 6 characters in length.');
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-xs text-on-surface font-code-md transition-colors cursor-pointer flex items-center gap-1"
+                          title="Change administrator password"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">lock_reset</span>
+                          <span>Change Pass</span>
+                        </button>
+                      </div>
 
                       {!isRootAdmin && (
                         <button
@@ -2035,6 +2075,161 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 >
                   <span className="material-symbols-outlined text-[16px]">check</span>
                   <span>Create Administrator</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MODAL: EDIT ADMINISTRATOR PROFILE */}
+      {/* ------------------------------------------------------------- */}
+      {editingAdminUser && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-surface-container-low border border-outline-variant/40 rounded-xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-outline-variant/30 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-primary-container/20 text-primary-container flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
+                </div>
+                <div>
+                  <h3 className="font-headline-sm text-headline-sm font-bold text-white">
+                    Edit Administrator
+                  </h3>
+                  <p className="text-[11px] text-outline font-code-md">
+                    {editingAdminUser.id === 'user-admin-1' || editingAdminUser.email === 'admin@neduet.edu.pk' ? 'Root Administrator Profile' : 'Administrator Profile'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAdminUser(null)}
+                className="text-outline hover:text-white transition-colors"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {adminEditError && (
+              <div className="p-3 rounded bg-error/15 border border-error/30 text-error text-xs flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] shrink-0">error</span>
+                <span>{adminEditError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setAdminEditError(null);
+                if (!adminEditForm.name.trim() || !adminEditForm.email.trim()) {
+                  setAdminEditError('Name and Email are required.');
+                  return;
+                }
+                if (adminEditForm.password && adminEditForm.password.length < 6) {
+                  setAdminEditError('Password must be at least 6 characters.');
+                  return;
+                }
+                const res = updateUserDetails(editingAdminUser.id, adminEditForm);
+                if (!res.success) {
+                  setAdminEditError(res.error || 'Failed to update administrator profile.');
+                  return;
+                }
+                setRoleActionToast(`Administrator details for "${adminEditForm.name}" updated successfully!`);
+                setTimeout(() => setRoleActionToast(null), 4000);
+                setEditingAdminUser(null);
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                  Full Name &amp; Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminEditForm.name}
+                  onChange={(e) => setAdminEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                  Official Email Address *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={adminEditForm.email}
+                  onChange={(e) => setAdminEditForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                  Security Password / Passcode *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={adminEditForm.password}
+                  onChange={(e) => setAdminEditForm(prev => ({ ...prev, password: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container font-code-md"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                  Department / Organization
+                </label>
+                <input
+                  type="text"
+                  value={adminEditForm.department}
+                  onChange={(e) => setAdminEditForm(prev => ({ ...prev, department: e.target.value }))}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                    Phone / Contact
+                  </label>
+                  <input
+                    type="text"
+                    value={adminEditForm.phoneNumber}
+                    onChange={(e) => setAdminEditForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-container text-white rounded border border-outline-variant/40 text-xs outline-none focus:border-primary-container"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-code-md text-on-surface uppercase tracking-wider">
+                    Faculty / Roll ID
+                  </label>
+                  <input
+                    type="text"
+                    value={adminEditForm.studentId}
+                    onChange={(e) => setAdminEditForm(prev => ({ ...prev, studentId: e.target.value }))}
+                    className="w-full px-3 py-2 bg-surface-container text-white rounded border border-outline-variant/40 text-xs outline-none focus:border-primary-container"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-outline-variant/30">
+                <button
+                  type="button"
+                  onClick={() => setEditingAdminUser(null)}
+                  className="px-4 py-2 rounded bg-surface-container hover:bg-surface-container-high text-xs text-on-surface transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <span className="material-symbols-outlined text-[16px]">save</span>
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>

@@ -1239,11 +1239,67 @@ export function useUsers() {
     saveUsers(updated);
   };
 
+  const updateUserDetails = (
+    userId: string,
+    data: {
+      name?: string;
+      email?: string;
+      password?: string;
+      department?: string;
+      phoneNumber?: string;
+      studentId?: string;
+    }
+  ): { success: boolean; error?: string } => {
+    const list = getStoredUsers();
+    const existing = list.find(u => u.id === userId);
+    if (!existing) return { success: false, error: 'User account not found.' };
+
+    if (data.email) {
+      const cleanEmail = data.email.toLowerCase().trim();
+      const duplicate = list.find(u => u.id !== userId && u.email.toLowerCase().trim() === cleanEmail);
+      if (duplicate) {
+        return { success: false, error: 'Another user account is already using this email address.' };
+      }
+    }
+
+    const updated = list.map(u => {
+      if (u.id === userId) {
+        return {
+          ...u,
+          name: data.name !== undefined && data.name.trim() ? data.name.trim() : u.name,
+          email: data.email !== undefined && data.email.trim() ? data.email.toLowerCase().trim() : u.email,
+          password: data.password !== undefined && data.password.trim() ? data.password.trim() : u.password,
+          department: data.department !== undefined ? data.department.trim() : u.department,
+          phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber.trim() : u.phoneNumber,
+          studentId: data.studentId !== undefined ? data.studentId.trim() : u.studentId,
+        };
+      }
+      return u;
+    });
+
+    saveUsers(updated);
+
+    const current = getStoredCurrentUser();
+    if (current && (current.id === userId || current.email.toLowerCase().trim() === existing.email.toLowerCase().trim())) {
+      saveCurrentUser({
+        ...current,
+        name: data.name !== undefined && data.name.trim() ? data.name.trim() : current.name,
+        email: data.email !== undefined && data.email.trim() ? data.email.toLowerCase().trim() : current.email,
+        password: data.password !== undefined && data.password.trim() ? data.password.trim() : current.password,
+        department: data.department !== undefined ? data.department.trim() : current.department,
+        phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber.trim() : current.phoneNumber,
+        studentId: data.studentId !== undefined ? data.studentId.trim() : current.studentId,
+      });
+    }
+
+    return { success: true };
+  };
+
   const deleteUser = (userId: string) => {
     const list = getStoredUsers();
     const updated = list.filter(u => u.id !== userId);
     saveUsers(updated);
   };
 
-  return { users, updateUserRole, addAdminUser, updateUserPassword, updateUserPasswordByEmail, deleteUser };
+  return { users, updateUserRole, addAdminUser, updateUserPassword, updateUserPasswordByEmail, updateUserDetails, deleteUser };
 }
