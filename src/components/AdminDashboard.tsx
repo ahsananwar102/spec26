@@ -1408,10 +1408,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  updateEventSettings(timelineForm);
-                  setTimelineToast(true);
-                  setTimeout(() => setTimelineToast(false), 4000);
+                onClick={async () => {
+                  const res = await updateEventSettings(timelineForm);
+                  if (!res.success) {
+                    alert(`Supabase Error: ${res.error}\n\nPlease run the permission script in Supabase SQL Editor.`);
+                  } else {
+                    setTimelineToast(true);
+                    setTimeout(() => setTimelineToast(false), 4000);
+                  }
                 }}
                 className="px-6 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] flex items-center gap-2 cursor-pointer"
               >

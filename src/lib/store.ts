@@ -199,7 +199,7 @@ export function useEventSettings() {
     };
   }, []);
 
-  const updateEventSettings = async (updates: Partial<EventSettings>) => {
+  const updateEventSettings = async (updates: Partial<EventSettings>): Promise<{ success: boolean; error?: string }> => {
     const current = getStoredEventSettings();
     const updated: EventSettings = {
       ...current,
@@ -224,11 +224,14 @@ export function useEventSettings() {
           });
         if (error) {
           console.error('Supabase event_settings update error:', error.message);
+          return { success: false, error: error.message };
         }
       } catch (err: any) {
         console.error('Supabase event_settings update error:', err?.message);
+        return { success: false, error: err?.message || 'Database update failed' };
       }
     }
+    return { success: true };
   };
 
   const setRegistrationPhase = async (phase: RegistrationPhase) => {
