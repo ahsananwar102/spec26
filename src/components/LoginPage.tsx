@@ -26,19 +26,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccessRedir
     }
   };
 
-  const handleLogin = (userEmail: string, userPwd?: string) => {
+  const handleLogin = async (userEmail: string, userPwd?: string) => {
     setLoading(true);
     setErrorMsg('');
 
-    setTimeout(() => {
-      const res = login(userEmail, userPwd);
+    try {
+      const res = await login(userEmail, userPwd);
       setLoading(false);
       if (res.success) {
         onNavigate(onSuccessRedirect);
       } else {
         setErrorMsg(res.error || 'Authentication failed. Please verify credentials.');
       }
-    }, 400);
+    } catch {
+      setLoading(false);
+      setErrorMsg('Authentication error. Please check your connection.');
+    }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {

@@ -61,62 +61,56 @@ function initializeStore() {
 
 initializeStore();
 
-export function getStoredUsers(): User[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.USERS);
-    let list: User[] = raw ? JSON.parse(raw) : INITIAL_USERS;
-    if (!Array.isArray(list) || list.length === 0) {
-      list = [...INITIAL_USERS];
-    }
+export function enforceRootAdminInvariant(rawList: User[]): User[] {
+  let list: User[] = Array.isArray(rawList) && rawList.length > 0 ? [...rawList] : [...INITIAL_USERS];
 
-    // Invariant: There MUST ALWAYS be exactly ONE Root Admin at any given time.
-    let rootFound = false;
-    let needsPersistence = false;
+  // Invariant: There MUST ALWAYS be exactly ONE Root Admin at any given time.
+  let rootFound = false;
 
-    // First pass: keep at most one existing root admin
-    list = list.map(u => {
-      if (u.role === 'ADMIN' && u.isRootAdmin) {
-        if (!rootFound) {
-          rootFound = true;
-          return { ...u, isRootAdmin: true };
-        } else {
-          needsPersistence = true;
-          return { ...u, isRootAdmin: false };
-        }
-      }
-      if (u.isRootAdmin && u.role !== 'ADMIN') {
-        needsPersistence = true;
+  // First pass: keep at most one existing root admin
+  list = list.map(u => {
+    if (u.role === 'ADMIN' && u.isRootAdmin) {
+      if (!rootFound) {
+        rootFound = true;
+        return { ...u, isRootAdmin: true };
+      } else {
         return { ...u, isRootAdmin: false };
+      }
+    }
+    if (u.isRootAdmin && u.role !== 'ADMIN') {
+      return { ...u, isRootAdmin: false };
+    }
+    return u;
+  });
+
+  // If no root admin was found, assign root status to user-admin-1 or the first ADMIN
+  if (!rootFound) {
+    let designated = false;
+    list = list.map(u => {
+      if (!designated && (u.id === 'user-admin-1' || u.role === 'ADMIN')) {
+        designated = true;
+        return { ...u, role: 'ADMIN' as Role, isRootAdmin: true };
       }
       return u;
     });
 
-    // If no root admin was found, assign root status to user-admin-1 or the first ADMIN
-    if (!rootFound) {
-      let designated = false;
-      list = list.map(u => {
-        if (!designated && (u.id === 'user-admin-1' || u.role === 'ADMIN')) {
-          designated = true;
-          needsPersistence = true;
-          return { ...u, role: 'ADMIN' as Role, isRootAdmin: true };
-        }
-        return u;
-      });
-
-      // If still no admin exists, inject default root admin
-      if (!designated) {
-        list.unshift({ ...INITIAL_USERS[0], role: 'ADMIN', isRootAdmin: true });
-        needsPersistence = true;
-      }
+    // If still no admin exists, inject default root admin
+    if (!designated) {
+      list.unshift({ ...INITIAL_USERS[0], role: 'ADMIN', isRootAdmin: true });
     }
+  }
 
-    if (needsPersistence && typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(list));
-    }
+  return list;
+}
 
-    return list;
+export function getStoredUsers(): User[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.USERS);
+    let list: User[] = raw ? JSON.parse(raw) : INITIAL_USERS;
+    const verified = enforceRootAdminInvariant(list);
+    return verified;
   } catch {
-    return INITIAL_USERS;
+    return enforceRootAdminInvariant(INITIAL_USERS);
   }
 }
 
@@ -143,15 +137,15 @@ export function getStoredCurrentUser(): User | null {
     const raw = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (!raw) return null;
     const parsed: User = JSON.parse(raw);
-    if (!parsed || !parsed.id) return null;
+    if (!parsed || !parsed.id || !parsed.email) return null;
 
-    // Security check: Validate session against registered users database to prevent client-side privilege escalation
+    // Validate against local users database
     const users = getStoredUsers();
     const verified = users.find(u => u.id === parsed.id || u.email.toLowerCase().trim() === parsed.email.toLowerCase().trim());
     if (verified) {
       return verified;
     }
-    return null; // Reject unverified / forged sessions
+    return parsed;
   } catch {
     return null;
   }
@@ -412,7 +406,7 @@ export function useAuth() {
     return { success: true, isMock: result.isMock };
   };
 
-  const login = (email: string, password?: string): { success: boolean; error?: string; user?: User } => {
+  const login = async (email: string, password?: string): Promise<{ success: boolean; error?: string; user?: User }> => {
     const cleanEmail = email.toLowerCase().trim();
     const cleanPassword = (password || '').trim();
 
@@ -420,8 +414,50 @@ export function useAuth() {
       return { success: false, error: 'Email address is required.' };
     }
 
-    const users = getStoredUsers();
-    const found = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    let found: User | undefined;
+
+    // Check central database first
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: dbRow, error } = await supabase
+          .from('app_users')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (!error && dbRow) {
+          found = {
+            id: dbRow.id,
+            name: dbRow.name,
+            email: dbRow.email,
+            password: dbRow.password,
+            role: (dbRow.role || 'USER').toUpperCase() as Role,
+            isRootAdmin: Boolean(dbRow.is_root_admin),
+            university: dbRow.university,
+            department: dbRow.department,
+            studentId: dbRow.student_id,
+            phoneNumber: dbRow.phone_number,
+            createdAt: dbRow.created_at || new Date().toISOString()
+          };
+
+          // Synchronize this fresh database record into local cache
+          const currentLocal = getStoredUsers();
+          const hasUser = currentLocal.some(u => u.id === found!.id || u.email.toLowerCase() === cleanEmail);
+          const merged = hasUser
+            ? currentLocal.map(u => (u.id === found!.id || u.email.toLowerCase() === cleanEmail) ? found! : u)
+            : [...currentLocal, found];
+          saveUsers(enforceRootAdminInvariant(merged));
+        }
+      } catch (err) {
+        console.warn('Supabase login check note:', err);
+      }
+    }
+
+    // Fall back to local users store if Supabase is offline or user was not in DB
+    if (!found) {
+      const users = getStoredUsers();
+      found = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    }
 
     if (found) {
       if (found.role === 'ADMIN') {
@@ -439,7 +475,7 @@ export function useAuth() {
     return { success: false, error: 'Account not found. Please check your email or create an account.' };
   };
 
-  const signup = (data: {
+  const signup = async (data: {
     name: string;
     email: string;
     password?: string;
@@ -447,13 +483,30 @@ export function useAuth() {
     department?: string;
     studentId?: string;
     phoneNumber?: string;
-  }): { success: boolean; error?: string; user?: User } => {
+  }): Promise<{ success: boolean; error?: string; user?: User }> => {
     const cleanEmail = data.email.toLowerCase().trim();
     if (!cleanEmail) {
       return { success: false, error: 'Email address is required.' };
     }
     if (!data.name?.trim()) {
       return { success: false, error: 'Full name is required.' };
+    }
+
+    // Check central database for duplicate email
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: dbUser } = await supabase
+          .from('app_users')
+          .select('id')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (dbUser) {
+          return { success: false, error: 'An account with this email address already exists. Please log in.' };
+        }
+      } catch (err) {
+        console.warn('Supabase signup duplicate check note:', err);
+      }
     }
 
     const users = getStoredUsers();
@@ -475,43 +528,123 @@ export function useAuth() {
       phoneNumber: data.phoneNumber || '+92 300 1234567',
       createdAt: new Date().toISOString()
     };
+
+    // Insert user into central database
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('app_users').insert({
+          id: newUser.id,
+          name: newUser.name,
+          email: newUser.email,
+          password: newUser.password,
+          role: 'USER',
+          is_root_admin: false,
+          university: newUser.university,
+          department: newUser.department,
+          student_id: newUser.studentId,
+          phone_number: newUser.phoneNumber,
+          created_at: newUser.createdAt,
+          updated_at: newUser.createdAt
+        });
+      } catch (err: any) {
+        console.warn('Supabase signup insert error:', err?.message);
+      }
+    }
+
     const updatedUsers = [...users, newUser];
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
+    saveUsers(updatedUsers);
     saveCurrentUser(newUser);
     return { success: true, user: newUser };
   };
 
-  const loginOrSignupGoogleUser = (userData: {
+  const loginOrSignupGoogleUser = async (userData: {
     name: string;
     email: string;
     university?: string;
     department?: string;
     studentId?: string;
     phoneNumber?: string;
-  }): { success: boolean; user: User } => {
+  }): Promise<{ success: boolean; user: User }> => {
     const cleanEmail = userData.email.toLowerCase().trim();
-    const users = getStoredUsers();
-    const existing = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
-    if (existing) {
-      saveCurrentUser(existing);
-      return { success: true, user: existing };
+    let userToUse: User | null = null;
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        const { data: dbRow } = await supabase
+          .from('app_users')
+          .select('*')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+
+        if (dbRow) {
+          userToUse = {
+            id: dbRow.id,
+            name: dbRow.name,
+            email: dbRow.email,
+            password: dbRow.password,
+            role: (dbRow.role || 'USER').toUpperCase() as Role,
+            isRootAdmin: Boolean(dbRow.is_root_admin),
+            university: dbRow.university,
+            department: dbRow.department,
+            studentId: dbRow.student_id,
+            phoneNumber: dbRow.phone_number,
+            createdAt: dbRow.created_at || new Date().toISOString()
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase Google auth check note:', err);
+      }
     }
-    const newUser: User = {
-      id: 'user-' + Date.now(),
-      name: userData.name.trim(),
-      email: cleanEmail,
-      role: 'USER',
-      isRootAdmin: false,
-      university: userData.university || 'NED University of Engineering & Technology',
-      department: userData.department || 'Electronic Engineering',
-      studentId: userData.studentId || 'STU-' + Math.floor(1000 + Math.random() * 9000),
-      phoneNumber: userData.phoneNumber || '+92 300 1234567',
-      createdAt: new Date().toISOString()
-    };
-    const updatedUsers = [...users, newUser];
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updatedUsers));
-    saveCurrentUser(newUser);
-    return { success: true, user: newUser };
+
+    if (!userToUse) {
+      const users = getStoredUsers();
+      const existing = users.find(u => u.email.toLowerCase().trim() === cleanEmail);
+      if (existing) {
+        userToUse = existing;
+      } else {
+        userToUse = {
+          id: 'user-' + Date.now(),
+          name: userData.name.trim(),
+          email: cleanEmail,
+          role: 'USER',
+          isRootAdmin: false,
+          university: userData.university || 'NED University of Engineering & Technology',
+          department: userData.department || 'Electronic Engineering',
+          studentId: userData.studentId || 'STU-' + Math.floor(1000 + Math.random() * 9000),
+          phoneNumber: userData.phoneNumber || '+92 300 1234567',
+          createdAt: new Date().toISOString()
+        };
+
+        if (supabase && isSupabaseConfigured) {
+          try {
+            await supabase.from('app_users').insert({
+              id: userToUse.id,
+              name: userToUse.name,
+              email: userToUse.email,
+              password: 'user123',
+              role: 'USER',
+              is_root_admin: false,
+              university: userToUse.university,
+              department: userToUse.department,
+              student_id: userToUse.studentId,
+              phone_number: userToUse.phoneNumber,
+              created_at: userToUse.createdAt,
+              updated_at: userToUse.createdAt
+            });
+          } catch (err: any) {
+            console.warn('Supabase Google user insert note:', err?.message);
+          }
+        }
+      }
+    }
+
+    const localUsers = getStoredUsers();
+    const updatedUsers = localUsers.some(u => u.id === userToUse!.id)
+      ? localUsers.map(u => u.id === userToUse!.id ? userToUse! : u)
+      : [...localUsers, userToUse];
+    saveUsers(updatedUsers);
+    saveCurrentUser(userToUse);
+    return { success: true, user: userToUse };
   };
 
   const logout = () => {
@@ -637,6 +770,20 @@ export function useAuth() {
         }
       } catch (err: any) {
         console.warn('Supabase password update error:', err);
+      }
+    }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .update({
+            password: cleanPassword,
+            updated_at: new Date().toISOString()
+          })
+          .ilike('email', cleanEmail);
+      } catch (err: any) {
+        console.warn('Supabase app_users password update error:', err?.message);
       }
     }
 
@@ -1216,14 +1363,92 @@ export function useUsers() {
   const [users, setUsers] = useState<User[]>(getStoredUsers);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchLiveUsers = async () => {
+      if (supabase && isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase
+            .from('app_users')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+          if (!error && data && isMounted) {
+            if (data.length === 0) {
+              // Automatically seed the default Root Admin in Supabase so it's initialized!
+              const defaultRoot = INITIAL_USERS[0];
+              await supabase.from('app_users').upsert({
+                id: defaultRoot.id,
+                name: defaultRoot.name,
+                email: defaultRoot.email.toLowerCase().trim(),
+                password: defaultRoot.password,
+                role: 'ADMIN',
+                is_root_admin: true,
+                university: defaultRoot.university,
+                department: defaultRoot.department,
+                student_id: defaultRoot.studentId,
+                phone_number: defaultRoot.phoneNumber,
+                created_at: defaultRoot.createdAt,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'email' });
+            } else {
+              const mapped: User[] = data.map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                email: row.email,
+                password: row.password,
+                role: (row.role || 'USER').toUpperCase() as Role,
+                isRootAdmin: Boolean(row.is_root_admin),
+                university: row.university || 'NED University of Engineering & Technology',
+                department: row.department || 'Electronic Engineering',
+                studentId: row.student_id,
+                phoneNumber: row.phone_number,
+                createdAt: row.created_at || new Date().toISOString()
+              }));
+              const verified = enforceRootAdminInvariant(mapped);
+              saveUsers(verified);
+              setUsers(verified);
+
+              // Also sync current active session user with live DB
+              const activeSession = getStoredCurrentUser();
+              if (activeSession) {
+                const freshMe = verified.find(u => u.id === activeSession.id || u.email.toLowerCase() === activeSession.email.toLowerCase());
+                if (freshMe && (freshMe.role !== activeSession.role || freshMe.isRootAdmin !== activeSession.isRootAdmin || freshMe.name !== activeSession.name)) {
+                  saveCurrentUser({
+                    ...activeSession,
+                    role: freshMe.role,
+                    isRootAdmin: freshMe.isRootAdmin,
+                    name: freshMe.name,
+                    department: freshMe.department
+                  });
+                }
+              }
+            }
+          }
+        } catch (err: any) {
+          console.warn('Could not fetch app_users from Supabase:', err?.message);
+        }
+      }
+    };
+
+    fetchLiveUsers();
+
     const handleUsersChange = () => {
       setUsers(getStoredUsers());
     };
     window.addEventListener('spec_users_change', handleUsersChange);
-    return () => window.removeEventListener('spec_users_change', handleUsersChange);
+
+    // Poll every 5s so role assignments, password updates, and new signups sync in real time across sessions
+    const interval = setInterval(fetchLiveUsers, 5000);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spec_users_change', handleUsersChange);
+      clearInterval(interval);
+    };
   }, []);
 
-  const updateUserRole = (userId: string, newRole: Role): { success: boolean; error?: string } => {
+  const updateUserRole = async (userId: string, newRole: Role): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredUsers();
     const target = list.find(u => u.id === userId);
     if (!target) return { success: false, error: 'User not found.' };
@@ -1234,23 +1459,43 @@ export function useUsers() {
 
     const updated = list.map(u => u.id === userId ? { ...u, role: newRole } : u);
     saveUsers(updated);
+    setUsers(updated);
+
     const current = getStoredCurrentUser();
     if (current && current.id === userId) {
       saveCurrentUser({ ...current, role: newRole });
     }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .update({
+            role: newRole,
+            is_root_admin: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+      } catch (err: any) {
+        console.error('Supabase updateUserRole error:', err?.message);
+      }
+    }
     return { success: true };
   };
 
-  const addAdminUser = (data: { name: string; email: string; password: string; department?: string; phoneNumber?: string }) => {
+  const addAdminUser = async (data: { name: string; email: string; password: string; department?: string; phoneNumber?: string }): Promise<User> => {
     const list = getStoredUsers();
     const cleanEmail = data.email.toLowerCase().trim();
     const existing = list.find(u => u.email.toLowerCase().trim() === cleanEmail);
-    if (existing) {
-      const updated = list.map(u => u.id === existing.id ? { ...u, role: 'ADMIN' as Role, password: data.password } : u);
-      saveUsers(updated);
-      return existing;
-    }
-    const newAdmin: User = {
+
+    const targetUser: User = existing ? {
+      ...existing,
+      name: data.name.trim(),
+      role: 'ADMIN' as Role,
+      password: data.password.trim(),
+      department: data.department || existing.department,
+      phoneNumber: data.phoneNumber || existing.phoneNumber
+    } : {
       id: 'admin-' + Date.now(),
       name: data.name.trim(),
       email: cleanEmail,
@@ -1263,24 +1508,98 @@ export function useUsers() {
       phoneNumber: data.phoneNumber || '+92 21 99261261',
       createdAt: new Date().toISOString()
     };
-    saveUsers([...list, newAdmin]);
-    return newAdmin;
-  };
 
-  const updateUserPassword = (userId: string, newPassword: string) => {
-    const list = getStoredUsers();
-    const updated = list.map(u => u.id === userId ? { ...u, password: newPassword } : u);
+    const updated = existing
+      ? list.map(u => u.id === existing.id ? targetUser : u)
+      : [...list, targetUser];
+
     saveUsers(updated);
+    setUsers(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .upsert({
+            id: targetUser.id,
+            name: targetUser.name,
+            email: targetUser.email,
+            password: targetUser.password,
+            role: 'ADMIN',
+            is_root_admin: false,
+            university: targetUser.university,
+            department: targetUser.department,
+            student_id: targetUser.studentId,
+            phone_number: targetUser.phoneNumber,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'email' });
+      } catch (err: any) {
+        console.error('Supabase addAdminUser error:', err?.message);
+      }
+    }
+
+    return targetUser;
   };
 
-  const updateUserPasswordByEmail = (email: string, newPassword: string) => {
+  const updateUserPassword = async (userId: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    const list = getStoredUsers();
+    const cleanPass = newPassword.trim();
+    if (!cleanPass || cleanPass.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters.' };
+    }
+    const updated = list.map(u => u.id === userId ? { ...u, password: cleanPass } : u);
+    saveUsers(updated);
+    setUsers(updated);
+
+    const current = getStoredCurrentUser();
+    if (current && current.id === userId) {
+      saveCurrentUser({ ...current, password: cleanPass });
+    }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .update({
+            password: cleanPass,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+      } catch (err: any) {
+        console.error('Supabase updateUserPassword error:', err?.message);
+      }
+    }
+    return { success: true };
+  };
+
+  const updateUserPasswordByEmail = async (email: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredUsers();
     const cleanEmail = email.toLowerCase().trim();
-    const updated = list.map(u => u.email.toLowerCase().trim() === cleanEmail ? { ...u, password: newPassword } : u);
+    const cleanPass = newPassword.trim();
+    const target = list.find(u => u.email.toLowerCase().trim() === cleanEmail);
+    if (!target) return { success: false, error: 'User not found.' };
+
+    const updated = list.map(u => u.email.toLowerCase().trim() === cleanEmail ? { ...u, password: cleanPass } : u);
     saveUsers(updated);
+    setUsers(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .update({
+            password: cleanPass,
+            updated_at: new Date().toISOString()
+          })
+          .ilike('email', cleanEmail);
+      } catch (err: any) {
+        console.error('Supabase updateUserPasswordByEmail error:', err?.message);
+      }
+    }
+    return { success: true };
   };
 
-  const updateUserDetails = (
+  const updateUserDetails = async (
     userId: string,
     data: {
       name?: string;
@@ -1291,7 +1610,7 @@ export function useUsers() {
       studentId?: string;
     },
     requesterId?: string
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredUsers();
     const existing = list.find(u => u.id === userId);
     if (!existing) return { success: false, error: 'User account not found.' };
@@ -1309,43 +1628,59 @@ export function useUsers() {
       }
     }
 
-    const updated = list.map(u => {
-      if (u.id === userId) {
-        return {
-          ...u,
-          name: data.name !== undefined && data.name.trim() ? data.name.trim() : u.name,
-          email: data.email !== undefined && data.email.trim() ? data.email.toLowerCase().trim() : u.email,
-          password: data.password !== undefined && data.password.trim() ? data.password.trim() : u.password,
-          department: data.department !== undefined ? data.department.trim() : u.department,
-          phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber.trim() : u.phoneNumber,
-          studentId: data.studentId !== undefined ? data.studentId.trim() : u.studentId,
-        };
-      }
-      return u;
-    });
+    const updatedUser: User = {
+      ...existing,
+      name: data.name !== undefined && data.name.trim() ? data.name.trim() : existing.name,
+      email: data.email !== undefined && data.email.trim() ? data.email.toLowerCase().trim() : existing.email,
+      password: data.password !== undefined && data.password.trim() ? data.password.trim() : existing.password,
+      department: data.department !== undefined ? data.department.trim() : existing.department,
+      phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber.trim() : existing.phoneNumber,
+      studentId: data.studentId !== undefined ? data.studentId.trim() : existing.studentId,
+    };
 
+    const updated = list.map(u => u.id === userId ? updatedUser : u);
     saveUsers(updated);
+    setUsers(updated);
 
     const current = getStoredCurrentUser();
     if (current && (current.id === userId || current.email.toLowerCase().trim() === existing.email.toLowerCase().trim())) {
       saveCurrentUser({
         ...current,
-        name: data.name !== undefined && data.name.trim() ? data.name.trim() : current.name,
-        email: data.email !== undefined && data.email.trim() ? data.email.toLowerCase().trim() : current.email,
-        password: data.password !== undefined && data.password.trim() ? data.password.trim() : current.password,
-        department: data.department !== undefined ? data.department.trim() : current.department,
-        phoneNumber: data.phoneNumber !== undefined ? data.phoneNumber.trim() : current.phoneNumber,
-        studentId: data.studentId !== undefined ? data.studentId.trim() : current.studentId,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        password: updatedUser.password,
+        department: updatedUser.department,
+        phoneNumber: updatedUser.phoneNumber,
+        studentId: updatedUser.studentId,
       });
+    }
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase
+          .from('app_users')
+          .update({
+            name: updatedUser.name,
+            email: updatedUser.email,
+            password: updatedUser.password,
+            department: updatedUser.department,
+            phone_number: updatedUser.phoneNumber,
+            student_id: updatedUser.studentId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', userId);
+      } catch (err: any) {
+        console.error('Supabase updateUserDetails error:', err?.message);
+      }
     }
 
     return { success: true };
   };
 
-  const transferRootAdmin = (
+  const transferRootAdmin = async (
     newRootAdminId: string,
     currentRootAdminId?: string
-  ): { success: boolean; error?: string } => {
+  ): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredUsers();
     const activeUser = getStoredCurrentUser();
     const callerId = currentRootAdminId || activeUser?.id;
@@ -1378,6 +1713,7 @@ export function useUsers() {
     });
 
     saveUsers(updated);
+    setUsers(updated);
 
     const active = getStoredCurrentUser();
     if (active) {
@@ -1388,10 +1724,27 @@ export function useUsers() {
       }
     }
 
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('app_users').update({
+          is_root_admin: false,
+          updated_at: new Date().toISOString()
+        }).eq('id', currentRoot.id);
+
+        await supabase.from('app_users').update({
+          is_root_admin: true,
+          role: 'ADMIN',
+          updated_at: new Date().toISOString()
+        }).eq('id', targetAdmin.id);
+      } catch (err: any) {
+        console.error('Supabase transferRootAdmin error:', err?.message);
+      }
+    }
+
     return { success: true };
   };
 
-  const deleteUser = (userId: string): { success: boolean; error?: string } => {
+  const deleteUser = async (userId: string): Promise<{ success: boolean; error?: string }> => {
     const list = getStoredUsers();
     const target = list.find(u => u.id === userId);
     if (!target) return { success: false, error: 'User not found.' };
@@ -1402,6 +1755,15 @@ export function useUsers() {
 
     const updated = list.filter(u => u.id !== userId);
     saveUsers(updated);
+    setUsers(updated);
+
+    if (supabase && isSupabaseConfigured) {
+      try {
+        await supabase.from('app_users').delete().eq('id', userId);
+      } catch (err: any) {
+        console.error('Supabase deleteUser error:', err?.message);
+      }
+    }
     return { success: true };
   };
 

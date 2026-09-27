@@ -30,7 +30,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
       setErrorMsg('Password must be at least 6 characters in length.');
@@ -48,8 +48,8 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
     setLoading(true);
     setErrorMsg('');
 
-    setTimeout(() => {
-      const res = signup({
+    try {
+      const res = await signup({
         name: fullName,
         email,
         password,
@@ -67,7 +67,10 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
       setTimeout(() => {
         onNavigate(onSuccessRedirect);
       }, 900);
-    }, 400);
+    } catch (err: any) {
+      setLoading(false);
+      setErrorMsg(err?.message || 'Failed to create account. Please try again.');
+    }
   };
 
   return (

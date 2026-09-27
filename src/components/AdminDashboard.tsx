@@ -214,7 +214,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
   // Check if current user is ADMIN
   if (!currentUser || currentUser.role !== 'ADMIN') {
-    const handleAdminSignIn = (e: React.FormEvent) => {
+    const handleAdminSignIn = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!adminLoginEmail || !adminLoginPassword) {
         setAdminLoginError('Please enter both administrator email and password.');
@@ -223,15 +223,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       setAdminLoginLoading(true);
       setAdminLoginError('');
 
-      setTimeout(() => {
-        const res = login(adminLoginEmail, adminLoginPassword);
+      try {
+        const res = await login(adminLoginEmail, adminLoginPassword);
         setAdminLoginLoading(false);
         if (!res.success) {
           setAdminLoginError(res.error || 'Authentication failed. Please verify credentials.');
         } else if (res.user?.role !== 'ADMIN') {
           setAdminLoginError('Access denied. This account does not possess administrator clearance.');
         }
-      }, 400);
+      } catch (err: any) {
+        setAdminLoginLoading(false);
+        setAdminLoginError(err?.message || 'Authentication error occurred.');
+      }
     };
 
     return (
@@ -1567,10 +1570,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={async () => {
                                 const newPass = prompt(`Set new security password for ${admin.name}:`, admin.password || 'admin123');
                                 if (newPass && newPass.trim().length >= 6) {
-                                  updateUserPassword(admin.id, newPass.trim());
+                                  await updateUserPassword(admin.id, newPass.trim());
                                   setRoleActionToast(`Password updated for ${admin.name}!`);
                                   setTimeout(() => setRoleActionToast(null), 4000);
                                 } else if (newPass) {
@@ -1607,9 +1610,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                         {!isRootAdmin && (
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Revoke administrative privileges from ${admin.name} (${admin.email})? They will become a standard USER.`)) {
-                                const res = updateUserRole(admin.id, 'USER');
+                                const res = await updateUserRole(admin.id, 'USER');
                                 if (res && !res.success) {
                                   alert(res.error || 'Failed to revoke administrator.');
                                   return;
@@ -1710,9 +1713,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                             <span className="text-outline text-[11px] font-code-md">Protected Root</span>
                           ) : (
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm(`Revoke admin privileges from ${u.name}?`)) {
-                                  updateUserRole(u.id, 'USER');
+                                  await updateUserRole(u.id, 'USER');
                                   setRoleActionToast(`Revoked admin role from ${u.name}.`);
                                   setTimeout(() => setRoleActionToast(null), 4000);
                                 }
@@ -1724,9 +1727,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                           )
                         ) : (
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (confirm(`Grant ADMIN privileges to ${u.name} (${u.email})? They will have full administrative access to /admin.`)) {
-                                updateUserRole(u.id, 'ADMIN');
+                                await updateUserRole(u.id, 'ADMIN');
                                 setRoleActionToast(`Granted ADMIN privileges to ${u.name}! They can now log in at /admin.`);
                                 setTimeout(() => setRoleActionToast(null), 4000);
                               }
@@ -1945,7 +1948,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newAdminForm.name || !newAdminForm.email || !newAdminForm.password) {
                   alert('Please provide name, email, and password.');
@@ -1955,7 +1958,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   alert('Password must be at least 6 characters.');
                   return;
                 }
-                addAdminUser(newAdminForm);
+                await addAdminUser(newAdminForm);
                 setIsAddAdminModalOpen(false);
                 setRoleActionToast(`Administrator "${newAdminForm.name}" created successfully! They can log in with their email and password.`);
                 setNewAdminForm({
@@ -2081,7 +2084,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             )}
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 setAdminEditError(null);
                 if (!adminEditForm.name.trim() || !adminEditForm.email.trim()) {
@@ -2092,7 +2095,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   setAdminEditError('Password must be at least 6 characters.');
                   return;
                 }
-                const res = updateUserDetails(editingAdminUser.id, adminEditForm);
+                const res = await updateUserDetails(editingAdminUser.id, adminEditForm);
                 if (!res.success) {
                   setAdminEditError(res.error || 'Failed to update administrator profile.');
                   return;
@@ -2257,8 +2260,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const res = transferRootAdmin(transferTargetAdmin.id);
+                onClick={async () => {
+                  const res = await transferRootAdmin(transferTargetAdmin.id);
                   if (!res.success) {
                     setTransferError(res.error || 'Failed to transfer root administrator status.');
                     return;

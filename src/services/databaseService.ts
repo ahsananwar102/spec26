@@ -8,7 +8,7 @@ import {
   getStoredEventSettings,
   saveEventSettings,
 } from '../lib/store';
-import { Competition, Registration, RegStatus, CategoryItem, EventSettings, ContactMessage } from '../types';
+import { Competition, Registration, RegStatus, CategoryItem, EventSettings, ContactMessage, User, Role } from '../types';
 
 export interface RegistrationInput {
   userId: string;
@@ -653,4 +653,230 @@ export async function deleteRegistrationInDb(id: string): Promise<{ success: boo
   }
   return { success: true };
 }
+
+/**
+ * 12. getAppUsersFromDb()
+ * Fetches all registered users from public.app_users in Supabase
+ */
+export async function getAppUsersFromDb(): Promise<{ data: User[] | null; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { data, error } = await supabase
+        .from('app_users')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      if (data) {
+        const mapped: User[] = data.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          password: row.password,
+          role: (row.role || 'USER').toUpperCase() as Role,
+          isRootAdmin: Boolean(row.is_root_admin),
+          university: row.university || 'NED University of Engineering & Technology',
+          department: row.department || 'Electronic Engineering',
+          studentId: row.student_id,
+          phoneNumber: row.phone_number,
+          createdAt: row.created_at || new Date().toISOString(),
+        }));
+        return { data: mapped, error: null };
+      }
+    } catch (err: any) {
+      console.warn('Supabase getAppUsersFromDb error:', err?.message);
+      return { data: null, error: err?.message };
+    }
+  }
+  return { data: null, error: 'Database not connected' };
+}
+
+/**
+ * 13. getAppUserByEmailFromDb(email)
+ * Fetches single user record by case-insensitive email
+ */
+export async function getAppUserByEmailFromDb(email: string): Promise<{ data: User | null; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data, error } = await supabase
+        .from('app_users')
+        .select('*')
+        .ilike('email', cleanEmail)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        return {
+          data: {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            password: data.password,
+            role: (data.role || 'USER').toUpperCase() as Role,
+            isRootAdmin: Boolean(data.is_root_admin),
+            university: data.university,
+            department: data.department,
+            studentId: data.student_id,
+            phoneNumber: data.phone_number,
+            createdAt: data.created_at || new Date().toISOString(),
+          },
+          error: null
+        };
+      }
+    } catch (err: any) {
+      console.warn('Supabase getAppUserByEmailFromDb error:', err?.message);
+      return { data: null, error: err?.message };
+    }
+  }
+  return { data: null, error: 'Database not connected' };
+}
+
+/**
+ * 14. upsertAppUserInDb(user)
+ * Inserts or updates user in public.app_users table
+ */
+export async function upsertAppUserInDb(user: User): Promise<{ success: boolean; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { error } = await supabase
+        .from('app_users')
+        .upsert({
+          id: user.id,
+          name: user.name,
+          email: user.email.toLowerCase().trim(),
+          password: user.password || 'user123',
+          role: user.role,
+          is_root_admin: Boolean(user.isRootAdmin),
+          university: user.university || 'NED University of Engineering & Technology',
+          department: user.department || 'Electronic Engineering',
+          student_id: user.studentId,
+          phone_number: user.phoneNumber,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+
+      if (error) throw error;
+      return { success: true, error: null };
+    } catch (err: any) {
+      console.warn('Supabase upsertAppUserInDb error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true, error: null };
+}
+
+/**
+ * 15. updateAppUserRoleInDb(userId, role, isRootAdmin)
+ * Updates role and root status in database
+ */
+export async function updateAppUserRoleInDb(
+  userId: string,
+  role: Role,
+  isRootAdmin: boolean = false
+): Promise<{ success: boolean; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { error } = await supabase
+        .from('app_users')
+        .update({
+          role,
+          is_root_admin: isRootAdmin,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+      return { success: true, error: null };
+    } catch (err: any) {
+      console.warn('Supabase updateAppUserRoleInDb error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true, error: null };
+}
+
+/**
+ * 16. updateAppUserPasswordInDb(userId, password)
+ * Updates user password in database
+ */
+export async function updateAppUserPasswordInDb(
+  userId: string,
+  newPassword: string
+): Promise<{ success: boolean; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { error } = await supabase
+        .from('app_users')
+        .update({
+          password: newPassword.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      if (error) throw error;
+      return { success: true, error: null };
+    } catch (err: any) {
+      console.warn('Supabase updateAppUserPasswordInDb error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true, error: null };
+}
+
+/**
+ * 17. transferRootAdminInDb(newRootId, currentRootId)
+ * Atomically swaps Root Admin status between two administrators
+ */
+export async function transferRootAdminInDb(
+  newRootId: string,
+  currentRootId: string
+): Promise<{ success: boolean; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { error: err1 } = await supabase
+        .from('app_users')
+        .update({
+          is_root_admin: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentRootId);
+      if (err1) throw err1;
+
+      const { error: err2 } = await supabase
+        .from('app_users')
+        .update({
+          is_root_admin: true,
+          role: 'ADMIN',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', newRootId);
+      if (err2) throw err2;
+
+      return { success: true, error: null };
+    } catch (err: any) {
+      console.warn('Supabase transferRootAdminInDb error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true, error: null };
+}
+
+/**
+ * 18. deleteAppUserInDb(userId)
+ * Removes user from database
+ */
+export async function deleteAppUserInDb(userId: string): Promise<{ success: boolean; error: string | null }> {
+  if (supabase && isSupabaseReady) {
+    try {
+      const { error } = await supabase.from('app_users').delete().eq('id', userId);
+      if (error) throw error;
+      return { success: true, error: null };
+    } catch (err: any) {
+      console.warn('Supabase deleteAppUserInDb error:', err?.message);
+      return { success: false, error: err?.message };
+    }
+  }
+  return { success: true, error: null };
+}
+
 

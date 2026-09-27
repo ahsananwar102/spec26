@@ -19,6 +19,27 @@ ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registratio
 ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_participation_model_check;
 
 -- ==============================================================================
+-- TABLE: app_users (User Directory, Authentication, & Administrative Roles)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.app_users (
+    id VARCHAR(128) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(32) NOT NULL DEFAULT 'USER', -- 'USER', 'ADMIN'
+    is_root_admin BOOLEAN NOT NULL DEFAULT false,
+    university VARCHAR(255) DEFAULT 'NED University of Engineering & Technology',
+    department VARCHAR(255) DEFAULT 'Electronic Engineering',
+    student_id VARCHAR(128),
+    phone_number VARCHAR(64),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_users_email ON public.app_users(email);
+CREATE INDEX IF NOT EXISTS idx_app_users_role ON public.app_users(role);
+
+-- ==============================================================================
 -- TABLE: categories (Dynamic Competition Streams & Disciplines)
 -- ==============================================================================
 CREATE TABLE IF NOT EXISTS public.categories (
@@ -147,6 +168,7 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 
 -- Explicit grants for each specific application table
+GRANT ALL ON TABLE public.app_users TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.event_settings TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.contact_messages TO anon, authenticated, service_role;
 GRANT ALL ON TABLE public.categories TO anon, authenticated, service_role;
@@ -162,12 +184,21 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authent
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ==============================================================================
+ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contact_messages ENABLE ROW LEVEL SECURITY;
+
+-- 0. App Users: Full read and write access for registration, login, and admin role sync
+DROP POLICY IF EXISTS "Allow full access on app_users" ON public.app_users;
+CREATE POLICY "Allow full access on app_users"
+    ON public.app_users FOR ALL
+    TO anon, authenticated, service_role
+    USING (true)
+    WITH CHECK (true);
 
 -- 1. Categories: Full read and write access for app operations
 DROP POLICY IF EXISTS "Allow public read on categories" ON public.categories;
@@ -365,14 +396,25 @@ ON CONFLICT (slug) DO UPDATE SET
     rules_summary = EXCLUDED.rules_summary;
 
 -- ==============================================================================
--- HELPER QUERY: PROMOTING A REGISTERED USER TO ADMIN
+-- SEED INITIAL ROOT ADMINISTRATOR
 -- ==============================================================================
--- Run this query after creating an account with your desired admin email in Supabase:
---
--- UPDATE auth.users
--- SET raw_user_meta_data = raw_user_meta_data || '{"role": "ADMIN"}'::jsonb
--- WHERE email = 'your-admin-email@neduet.edu.pk';
--- ==============================================================================
+INSERT INTO public.app_users (
+    id, name, email, password, role, is_root_admin, university, department, student_id, phone_number
+) VALUES (
+    'user-admin-1',
+    'Engr. Dr. Hashir Kidwai',
+    'admin@neduet.edu.pk',
+    'admin123',
+    'ADMIN',
+    true,
+    'NED University of Engineering & Technology',
+    'Department of Electronic Engineering',
+    'FAC-EE-001',
+    '+92 21 99261261'
+)
+ON CONFLICT (email) DO UPDATE SET
+    role = 'ADMIN',
+    is_root_admin = true;
 
 -- Output confirmation
-SELECT 'SPEC26 Database Schema, Categories, Timeline & Arenas Initialized Successfully!' AS status;
+SELECT 'SPEC26 Database Schema, Categories, Timeline, App Users & Arenas Initialized Successfully!' AS status;
