@@ -61,7 +61,7 @@ export const CompetitionsPage: React.FC<CompetitionsPageProps> = ({ onNavigate }
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2.5 px-3 py-1 rounded bg-surface-container-high text-primary font-label-caps text-label-caps uppercase tracking-wider">
               <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-              Annual Engineering Symposium
+              Annual Engineering Symposium &middot; {eventSettings.competitionDates || formatDisplayDate(eventSettings.eventDate)}
             </div>
             {eventSettings.registrationPhase === 'NOT_STARTED' && (
               <span className="text-xs font-code-md px-3 py-1 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 flex items-center gap-1.5">

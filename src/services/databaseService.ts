@@ -517,7 +517,7 @@ export async function getEventSettings(): Promise<{
         .from('event_settings')
         .select('*')
         .eq('id', 'current')
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       if (data) {
@@ -549,17 +549,18 @@ export async function updateEventSettings(settings: EventSettings): Promise<{
 }> {
   if (supabase && isSupabaseReady) {
     try {
+      const current = getStoredEventSettings();
       const { error } = await supabase
         .from('event_settings')
         .upsert({
           id: 'current',
           registration_phase: settings.registrationPhase,
-          event_date: settings.eventDate,
-          registration_start_date: settings.registrationStartDate,
-          registration_end_date: settings.registrationEndDate,
-          competition_dates: settings.competitionDates,
+          event_date: settings.eventDate || current.eventDate || '2026-04-15',
+          registration_start_date: settings.registrationStartDate || current.registrationStartDate || '2026-03-01',
+          registration_end_date: settings.registrationEndDate || current.registrationEndDate || '2026-04-10',
+          competition_dates: settings.competitionDates || current.competitionDates || '15–16 April 2026',
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
 
       if (error) throw error;
     } catch (err: any) {

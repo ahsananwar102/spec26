@@ -55,7 +55,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-6 py-6">
             <div className="inline-flex items-center gap-2 text-xs font-code-md text-primary-container uppercase tracking-widest mx-auto px-3 py-1 rounded bg-surface-container-high border border-outline-variant/40">
               <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-              Annual Engineering Symposium
+              Annual Engineering Symposium &middot; {eventSettings.competitionDates || formatDisplayDate(eventSettings.eventDate)}
             </div>
 
             <div className="flex flex-col gap-3 items-center">

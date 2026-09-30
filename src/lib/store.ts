@@ -216,22 +216,54 @@ export function useEventSettings() {
             .from('event_settings')
             .select('*')
             .eq('id', 'current')
-            .single();
+            .maybeSingle();
 
-          if (!error && data && isMounted) {
+          if (!error && isMounted) {
+            const current = getStoredEventSettings();
+
+            if (!data) {
+              // Row does not exist in Supabase yet. Seed it with stored settings!
+              await supabase.from('event_settings').upsert({
+                id: 'current',
+                registration_phase: current.registrationPhase,
+                event_date: current.eventDate,
+                registration_start_date: current.registrationStartDate,
+                registration_end_date: current.registrationEndDate,
+                competition_dates: current.competitionDates,
+                updated_at: new Date().toISOString()
+              }, { onConflict: 'id' });
+              return;
+            }
+
             const mapped: EventSettings = {
-              registrationPhase: data.registration_phase as RegistrationPhase,
-              eventDate: data.event_date || '2026-04-15',
-              registrationStartDate: data.registration_start_date || '2026-03-01',
-              registrationEndDate: data.registration_end_date || '2026-04-10',
-              competitionDates: data.competition_dates || '15–16 April 2026',
-              updatedAt: data.updated_at || new Date().toISOString()
+              registrationPhase: (data.registration_phase as RegistrationPhase) || current.registrationPhase,
+              eventDate: data.event_date || current.eventDate,
+              registrationStartDate: data.registration_start_date || current.registrationStartDate,
+              registrationEndDate: data.registration_end_date || current.registrationEndDate,
+              competitionDates: data.competition_dates || current.competitionDates,
+              updatedAt: data.updated_at || current.updatedAt
             };
-            saveEventSettings(mapped);
-            setEventSettings(mapped);
+
+            // Deep equality check: only trigger updates if fields have genuinely changed
+            const hasChanged =
+              current.registrationPhase !== mapped.registrationPhase ||
+              current.eventDate !== mapped.eventDate ||
+              current.registrationStartDate !== mapped.registrationStartDate ||
+              current.registrationEndDate !== mapped.registrationEndDate ||
+              current.competitionDates !== mapped.competitionDates;
+
+            if (hasChanged) {
+              const localTime = new Date(current.updatedAt || 0).getTime();
+              const remoteTime = new Date(data.updated_at || 0).getTime();
+              // Prevent older remote response from blowing away a recent local update
+              if (remoteTime >= localTime || isNaN(localTime) || (Date.now() - localTime > 15000)) {
+                saveEventSettings(mapped);
+                setEventSettings(mapped);
+              }
+            }
           }
-        } catch (err) {
-          console.warn('Could not fetch live event_settings from Supabase:', err);
+        } catch (err: any) {
+          console.warn('Could not fetch live event_settings from Supabase:', err?.message);
         }
       }
     };
@@ -239,7 +271,19 @@ export function useEventSettings() {
     fetchLiveSettings();
 
     const handleSettingsChange = () => {
-      setEventSettings(getStoredEventSettings());
+      const fresh = getStoredEventSettings();
+      setEventSettings(prev => {
+        if (
+          prev.registrationPhase === fresh.registrationPhase &&
+          prev.eventDate === fresh.eventDate &&
+          prev.registrationStartDate === fresh.registrationStartDate &&
+          prev.registrationEndDate === fresh.registrationEndDate &&
+          prev.competitionDates === fresh.competitionDates
+        ) {
+          return prev;
+        }
+        return fresh;
+      });
     };
     window.addEventListener('spec_event_settings_change', handleSettingsChange);
 
@@ -260,6 +304,13 @@ export function useEventSettings() {
       ...updates,
       updatedAt: new Date().toISOString()
     };
+
+    // Sanitize dates to prevent Postgres syntax error (e.g. invalid date syntax "")
+    if (!updated.eventDate) updated.eventDate = current.eventDate || '2026-04-15';
+    if (!updated.registrationStartDate) updated.registrationStartDate = current.registrationStartDate || '2026-03-01';
+    if (!updated.registrationEndDate) updated.registrationEndDate = current.registrationEndDate || '2026-04-10';
+    if (!updated.competitionDates) updated.competitionDates = current.competitionDates || '15–16 April 2026';
+
     saveEventSettings(updated);
     setEventSettings(updated);
 
@@ -275,7 +326,8 @@ export function useEventSettings() {
             registration_end_date: updated.registrationEndDate,
             competition_dates: updated.competitionDates,
             updated_at: updated.updatedAt
-          });
+          }, { onConflict: 'id' });
+
         if (error) {
           console.error('Supabase event_settings update error:', error.message);
           return { success: false, error: error.message };
@@ -298,6 +350,16 @@ export function useEventSettings() {
 export function formatDisplayDate(dateStr?: string): string {
   if (!dateStr) return 'Date to be announced';
   try {
+    // If it's a simple YYYY-MM-DD format, construct date using local year, month, day to avoid UTC timezone offset shifts
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
+      return d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleDateString('en-US', {

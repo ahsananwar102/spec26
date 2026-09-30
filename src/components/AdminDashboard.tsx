@@ -126,17 +126,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     registrationEndDate: eventSettings.registrationEndDate,
     competitionDates: eventSettings.competitionDates
   });
+  const [isTimelineDirty, setIsTimelineDirty] = useState(false);
   const [timelineToast, setTimelineToast] = useState(false);
+  const [timelineSaving, setTimelineSaving] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTimelineForm({
-      registrationPhase: eventSettings.registrationPhase,
-      eventDate: eventSettings.eventDate,
-      registrationStartDate: eventSettings.registrationStartDate,
-      registrationEndDate: eventSettings.registrationEndDate,
-      competitionDates: eventSettings.competitionDates
-    });
-  }, [eventSettings]);
+    // CRITICAL: Never overwrite form inputs if the administrator has unsaved edits
+    if (!isTimelineDirty) {
+      setTimelineForm({
+        registrationPhase: eventSettings.registrationPhase,
+        eventDate: eventSettings.eventDate,
+        registrationStartDate: eventSettings.registrationStartDate,
+        registrationEndDate: eventSettings.registrationEndDate,
+        competitionDates: eventSettings.competitionDates
+      });
+    }
+  }, [eventSettings, isTimelineDirty]);
 
   // Admin Login Form States (used when not logged in as admin)
   const [adminLoginEmail, setAdminLoginEmail] = useState('');
@@ -1209,7 +1215,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* 1. About to Start */}
                 <div
-                  onClick={() => setTimelineForm(prev => ({ ...prev, registrationPhase: 'NOT_STARTED' }))}
+                  onClick={() => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationPhase: 'NOT_STARTED' }));
+                  }}
                   className={`p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                     timelineForm.registrationPhase === 'NOT_STARTED'
                       ? 'bg-surface-container border-yellow-500/70 ring-1 ring-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.15)]'
@@ -1237,7 +1247,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                 {/* 2. Ongoing */}
                 <div
-                  onClick={() => setTimelineForm(prev => ({ ...prev, registrationPhase: 'OPEN' }))}
+                  onClick={() => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationPhase: 'OPEN' }));
+                  }}
                   className={`p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                     timelineForm.registrationPhase === 'OPEN'
                       ? 'bg-surface-container border-primary-container ring-1 ring-primary-container/50 shadow-[0_0_20px_rgba(0,240,255,0.15)]'
@@ -1265,7 +1279,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
                 {/* 3. Ended */}
                 <div
-                  onClick={() => setTimelineForm(prev => ({ ...prev, registrationPhase: 'CLOSED' }))}
+                  onClick={() => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationPhase: 'CLOSED' }));
+                  }}
                   className={`p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                     timelineForm.registrationPhase === 'CLOSED'
                       ? 'bg-surface-container border-red-500/70 ring-1 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.15)]'
@@ -1304,7 +1322,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   required
                   placeholder="e.g. 15–16 April 2026"
                   value={timelineForm.competitionDates}
-                  onChange={(e) => setTimelineForm(prev => ({ ...prev, competitionDates: e.target.value }))}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, competitionDates: e.target.value }));
+                  }}
                   className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
                 />
                 <p className="text-[11px] text-outline">
@@ -1320,7 +1342,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   type="date"
                   required
                   value={timelineForm.eventDate}
-                  onChange={(e) => setTimelineForm(prev => ({ ...prev, eventDate: e.target.value }))}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, eventDate: e.target.value }));
+                  }}
                   className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
                 />
                 <p className="text-[11px] text-outline">
@@ -1336,7 +1362,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   type="date"
                   required
                   value={timelineForm.registrationStartDate}
-                  onChange={(e) => setTimelineForm(prev => ({ ...prev, registrationStartDate: e.target.value }))}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationStartDate: e.target.value }));
+                  }}
                   className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
                 />
                 <p className="text-[11px] text-outline">
@@ -1352,7 +1382,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   type="date"
                   required
                   value={timelineForm.registrationEndDate}
-                  onChange={(e) => setTimelineForm(prev => ({ ...prev, registrationEndDate: e.target.value }))}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationEndDate: e.target.value }));
+                  }}
                   className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container"
                 />
                 <p className="text-[11px] text-outline">
@@ -1404,39 +1438,90 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
               </div>
             </div>
 
-            {/* Save Buttons */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant/30">
-              <button
-                type="button"
-                onClick={() => {
-                  setTimelineForm({
-                    registrationPhase: eventSettings.registrationPhase,
-                    eventDate: eventSettings.eventDate,
-                    registrationStartDate: eventSettings.registrationStartDate,
-                    registrationEndDate: eventSettings.registrationEndDate,
-                    competitionDates: eventSettings.competitionDates
-                  });
-                }}
-                className="px-4 py-2.5 rounded bg-surface-container hover:bg-surface-container-high text-xs text-on-surface transition-colors cursor-pointer"
-              >
-                Reset to Current
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const res = await updateEventSettings(timelineForm);
-                  if (!res.success) {
-                    alert(`Supabase Error: ${res.error}\n\nPlease run the permission script in Supabase SQL Editor.`);
-                  } else {
-                    setTimelineToast(true);
-                    setTimeout(() => setTimelineToast(false), 4000);
-                  }
-                }}
-                className="px-6 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] flex items-center gap-2 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">save</span>
-                <span>Save &amp; Broadcast Timeline Changes</span>
-              </button>
+            {/* Error Banner if update failed */}
+            {timelineError && (
+              <div className="p-3.5 rounded-lg bg-error/15 border border-error/40 text-error text-xs flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[18px]">error</span>
+                  <span>{timelineError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTimelineError(null)}
+                  className="text-error hover:opacity-75"
+                >
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+            )}
+
+            {/* Save Buttons & Action Strip */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-outline-variant/30">
+              <div className="flex items-center gap-2">
+                {isTimelineDirty && (
+                  <span className="text-[11px] font-code-md px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    Unsaved Changes Pending
+                  </span>
+                )}
+                {!isTimelineDirty && (
+                  <span className="text-[11px] font-code-md text-on-surface-variant flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px] text-green-400">check_circle</span>
+                    All dates synchronized with database
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                <button
+                  type="button"
+                  disabled={timelineSaving}
+                  onClick={() => {
+                    setIsTimelineDirty(false);
+                    setTimelineError(null);
+                    setTimelineForm({
+                      registrationPhase: eventSettings.registrationPhase,
+                      eventDate: eventSettings.eventDate,
+                      registrationStartDate: eventSettings.registrationStartDate,
+                      registrationEndDate: eventSettings.registrationEndDate,
+                      competitionDates: eventSettings.competitionDates
+                    });
+                  }}
+                  className="px-4 py-2.5 rounded bg-surface-container hover:bg-surface-container-high text-xs text-on-surface transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Reset to Current
+                </button>
+                <button
+                  type="button"
+                  disabled={timelineSaving}
+                  onClick={async () => {
+                    setTimelineSaving(true);
+                    setTimelineError(null);
+                    const res = await updateEventSettings(timelineForm);
+                    setTimelineSaving(false);
+                    if (!res.success) {
+                      setTimelineError(res.error || 'Failed to update timeline in database.');
+                    } else {
+                      setIsTimelineDirty(false);
+                      setTimelineToast(true);
+                      setTimeout(() => setTimelineToast(false), 4000);
+                    }
+                  }}
+                  className="px-6 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {timelineSaving ? (
+                    <>
+                      <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
+                      <span>Saving to Database...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[16px]">save</span>
+                      <span>Save &amp; Broadcast Timeline Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
