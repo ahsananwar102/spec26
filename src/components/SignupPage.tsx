@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/store';
-import { GoogleAuthModal } from './GoogleAuthModal';
 
 interface SignupPageProps {
   onNavigate: (tab: string) => void;
@@ -8,7 +7,7 @@ interface SignupPageProps {
 }
 
 export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRedirect = 'registration' }) => {
-  const { signup, loginWithGoogle } = useAuth();
+  const { signup } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,17 +17,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
-
-  const handleGoogleAuth = async () => {
-    setLoading(true);
-    const res = await loginWithGoogle();
-    setLoading(false);
-    if (res.isMock || res.error) {
-      setIsGoogleModalOpen(true);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,27 +80,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
         </div>
 
         <div className="space-y-6">
-          {/* Sign up with Google button */}
-          <button
-            onClick={handleGoogleAuth}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded bg-surface-container-low hover:bg-surface-container border border-outline-variant/30 text-on-surface font-body-sm transition-all shadow-sm hover:border-outline-variant/60 cursor-pointer group"
-            type="button"
-          >
-            <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-              <path d="M12 5c1.6 0 3 .6 4.1 1.7l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z" fill="#EA4335"></path>
-              <path d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5.1 3.7-8.9z" fill="#4285F4"></path>
-              <path d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.8 0-1.3.2-2.1.4-2.8L1.9 6.3C.7 8.7 0 10.3 0 12s.7 3.3 1.9 5.7l3.7-2.9z" fill="#FBBC05"></path>
-              <path d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 16c1.8 3.7 5.6 7 10.1 7z" fill="#34A853"></path>
-            </svg>
-            <span className="font-semibold text-on-surface">Sign up with Google</span>
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 text-outline font-label-caps text-label-caps uppercase tracking-wider">
-            <div className="h-px flex-1 bg-outline-variant/30"></div>
-            <span>or sign up with email</span>
-            <div className="h-px flex-1 bg-outline-variant/30"></div>
-          </div>
 
           {/* Sign Up Form */}
           <form className="space-y-5" onSubmit={handleSubmit}>
@@ -274,17 +242,6 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
           )}
         </div>
       </div>
-
-      {/* Google Auth Modal */}
-      <GoogleAuthModal
-        isOpen={isGoogleModalOpen}
-        onClose={() => setIsGoogleModalOpen(false)}
-        onSuccess={() => {
-          setIsGoogleModalOpen(false);
-          onNavigate(onSuccessRedirect);
-        }}
-        actionText="Sign up with Google"
-      />
     </div>
   );
 };

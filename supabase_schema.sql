@@ -7,8 +7,8 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ==============================================================================
--- 0. LEGACY MIGRATION & CONSTRAINT CLEANUP
--- Safely drop restrictive constraints from older schema iterations if they exist
+-- 0. SCHEMA MIGRATIONS & CONSTRAINT CLEANUP
+-- Safely drop restrictive constraints and apply updates for existing databases
 -- ==============================================================================
 ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_category_check;
 ALTER TABLE IF EXISTS public.competitions DROP CONSTRAINT IF EXISTS competitions_format_check;
@@ -17,6 +17,12 @@ ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registratio
 ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_payment_channel_check;
 ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_status_check;
 ALTER TABLE IF EXISTS public.registrations DROP CONSTRAINT IF EXISTS registrations_participation_model_check;
+
+-- Recent updates: alternate phone, guest submissions, optional transaction & student id
+ALTER TABLE IF EXISTS public.registrations ADD COLUMN IF NOT EXISTS alternate_phone VARCHAR(64);
+ALTER TABLE IF EXISTS public.registrations ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE IF EXISTS public.registrations ALTER COLUMN transaction_id DROP NOT NULL;
+ALTER TABLE IF EXISTS public.team_members ALTER COLUMN student_id DROP NOT NULL;
 
 -- ==============================================================================
 -- TABLE: app_users (User Directory, Authentication, & Administrative Roles)
@@ -92,7 +98,7 @@ CREATE TABLE IF NOT EXISTS public.competitions (
 CREATE TABLE IF NOT EXISTS public.registrations (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     registration_id VARCHAR(64) UNIQUE NOT NULL, -- e.g. SPEC26-NED-88421
-    user_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(128),
     competition_id VARCHAR(128) NOT NULL,
     participation_model VARCHAR(32) NOT NULL,   -- 'individual', 'team'
     team_name VARCHAR(255),
@@ -102,9 +108,10 @@ CREATE TABLE IF NOT EXISTS public.registrations (
     department VARCHAR(255) NOT NULL,
     academic_year VARCHAR(64) NOT NULL,
     phone VARCHAR(64) NOT NULL,
+    alternate_phone VARCHAR(64),
     email VARCHAR(255) NOT NULL,
-    payment_channel VARCHAR(64) NOT NULL,       -- 'easypaisa', 'jazzcash', 'bank_transfer', etc.
-    transaction_id VARCHAR(128) NOT NULL,
+    payment_channel VARCHAR(64) NOT NULL,       -- 'Bank transfer', 'Easypaisa', 'Jazzcash', 'Nayapay'
+    transaction_id VARCHAR(128),
     receipt_url TEXT,
     status VARCHAR(32) NOT NULL DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
     calculated_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
@@ -127,7 +134,7 @@ CREATE TABLE IF NOT EXISTS public.team_members (
     registration_id UUID NOT NULL REFERENCES public.registrations(id) ON DELETE CASCADE,
     member_number INTEGER NOT NULL, -- 2, 3, 4
     full_name VARCHAR(255) NOT NULL,
-    student_id VARCHAR(128) NOT NULL,
+    student_id VARCHAR(128),
     email VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

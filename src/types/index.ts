@@ -67,7 +67,7 @@ export interface TeamMember {
   registrationId: string;
   memberIndex: number;
   name: string;
-  studentId: string;
+  studentId?: string;
   email?: string;
 }
 
@@ -86,6 +86,7 @@ export interface Registration {
   department: string;
   academicYear: string;
   phoneNumber: string;
+  alternatePhoneNumber?: string;
   emailAddress: string;
   paymentChannel: string;
   transactionId: string;

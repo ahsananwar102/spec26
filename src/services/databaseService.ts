@@ -11,7 +11,7 @@ import {
 import { Competition, Registration, RegStatus, CategoryItem, EventSettings, ContactMessage, User, Role } from '../types';
 
 export interface RegistrationInput {
-  userId: string;
+  userId?: string;
   competitionId: string;
   competitionTitle?: string;
   competitionCategory?: any;
@@ -23,16 +23,17 @@ export interface RegistrationInput {
   department: string;
   academicYear: string;
   phone: string;
+  alternatePhone?: string;
   email: string;
   paymentChannel: string;
-  transactionId: string;
+  transactionId?: string;
   calculatedFee: number;
 }
 
 export interface TeamMemberInput {
   memberNumber: number; // 2, 3, 4
   fullName: string;
-  studentId: string;
+  studentId?: string;
   email?: string;
 }
 
@@ -108,10 +109,10 @@ export async function uploadReceipt(file: File): Promise<{
     return { url: null, path: null, error: 'No file provided' };
   }
 
-  // 5MB max file size check
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
+  // 2MB max file size check
+  const MAX_FILE_SIZE = 2 * 1024 * 1024;
   if (file.size > MAX_FILE_SIZE) {
-    return { url: null, path: null, error: 'Receipt file exceeds the 5MB size limit. Please upload a smaller image or compressed PDF.' };
+    return { url: null, path: null, error: 'Receipt file exceeds the 2MB size limit. Please upload a smaller image or compressed PDF.' };
   }
 
   // Strict MIME type and extension validation
@@ -207,6 +208,8 @@ export async function createRegistration(
 
     const regNum = Math.floor(10000 + Math.random() * 90000);
     const generatedRegId = `SPEC26-NED-${regNum}`;
+    const trackingRef = registrationData.transactionId || `REF-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const effectiveUserId = registrationData.userId || `guest-${Date.now()}`;
 
     if (supabase && isSupabaseReady) {
       try {
@@ -215,7 +218,7 @@ export async function createRegistration(
           .from('registrations')
           .insert({
             registration_id: generatedRegId,
-            user_id: registrationData.userId,
+            user_id: effectiveUserId,
             competition_id: registrationData.competitionId,
             participation_model: registrationData.participationModel,
             team_name: registrationData.teamName || null,
@@ -225,9 +228,10 @@ export async function createRegistration(
             department: registrationData.department,
             academic_year: registrationData.academicYear,
             phone: registrationData.phone,
+            alternate_phone: registrationData.alternatePhone || null,
             email: registrationData.email,
             payment_channel: registrationData.paymentChannel,
-            transaction_id: registrationData.transactionId,
+            transaction_id: trackingRef,
             receipt_url: receiptUrl,
             status: 'pending',
             calculated_fee: registrationData.calculatedFee,
@@ -243,7 +247,7 @@ export async function createRegistration(
             registration_id: regData.id,
             member_number: tm.memberNumber,
             full_name: tm.fullName,
-            student_id: tm.studentId,
+            student_id: tm.studentId || 'N/A',
             email: tm.email || null,
           }));
 
@@ -260,7 +264,7 @@ export async function createRegistration(
         const localRegistration: Registration = {
           id: regData.id,
           registrationId: generatedRegId,
-          userId: registrationData.userId,
+          userId: effectiveUserId,
           competitionId: registrationData.competitionId,
           competitionTitle: registrationData.competitionTitle,
           competitionCategory: registrationData.competitionCategory,
@@ -272,9 +276,10 @@ export async function createRegistration(
           department: registrationData.department,
           academicYear: registrationData.academicYear,
           phoneNumber: registrationData.phone,
+          alternatePhoneNumber: registrationData.alternatePhone,
           emailAddress: registrationData.email,
           paymentChannel: registrationData.paymentChannel,
-          transactionId: registrationData.transactionId,
+          transactionId: trackingRef,
           receiptUrl: receiptUrl,
           receiptFileName: receiptFileName,
           status: 'PENDING',
@@ -285,7 +290,7 @@ export async function createRegistration(
             registrationId: regData.id,
             memberIndex: tm.memberNumber,
             name: tm.fullName,
-            studentId: tm.studentId,
+            studentId: tm.studentId || 'N/A',
             email: tm.email,
           })),
         };
@@ -302,7 +307,7 @@ export async function createRegistration(
     const localRegistration: Registration = {
       id: 'reg-' + Date.now(),
       registrationId: generatedRegId,
-      userId: registrationData.userId,
+      userId: effectiveUserId,
       competitionId: registrationData.competitionId,
       competitionTitle: registrationData.competitionTitle,
       competitionCategory: registrationData.competitionCategory,
@@ -314,9 +319,10 @@ export async function createRegistration(
       department: registrationData.department,
       academicYear: registrationData.academicYear,
       phoneNumber: registrationData.phone,
+      alternatePhoneNumber: registrationData.alternatePhone,
       emailAddress: registrationData.email,
       paymentChannel: registrationData.paymentChannel,
-      transactionId: registrationData.transactionId,
+      transactionId: trackingRef,
       receiptUrl: receiptUrl,
       receiptFileName: receiptFileName,
       status: 'PENDING',
@@ -327,7 +333,7 @@ export async function createRegistration(
         registrationId: 'reg-' + Date.now(),
         memberIndex: tm.memberNumber,
         name: tm.fullName,
-        studentId: tm.studentId,
+        studentId: tm.studentId || 'N/A',
         email: tm.email,
       })),
     };
@@ -387,6 +393,7 @@ export async function getAdminRegistrations(): Promise<{
         department: row.department,
         academicYear: row.academic_year,
         phoneNumber: row.phone,
+        alternatePhoneNumber: row.alternate_phone || undefined,
         emailAddress: row.email,
         paymentChannel: row.payment_channel,
         transactionId: row.transaction_id,

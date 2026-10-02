@@ -469,16 +469,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       'Participation Model',
       'Team Name',
       'Lead Name',
-      'Student Roll No',
-      'University',
-      'Department',
-      'Academic Year',
-      'Phone',
+      'Roll No / Student ID / CNIC',
+      'Institution Name',
+      'Department / Discipline / Grade',
+      'Academic Year / Class',
+      'Primary Phone',
+      'Alternate Phone',
       'Email',
       'Assessed Fee (PKR)',
       'Payment Channel',
-      'Transaction ID',
-      'Secondary Members',
+      'Reference / Transaction ID',
+      'Teammates',
       'Created At',
       'Admin Notes'
     ];
@@ -496,11 +497,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       `"${(r.department || '').replace(/"/g, '""')}"`,
       `"${r.academicYear || ''}"`,
       `"${r.phoneNumber || ''}"`,
+      `"${r.alternatePhoneNumber || ''}"`,
       `"${r.emailAddress || ''}"`,
       r.calculatedFee || 0,
       `"${r.paymentChannel || ''}"`,
       `"${(r.transactionId || '').replace(/"/g, '""')}"`,
-      `"${(r.teamMembers || []).map(m => `${m.name} (${m.studentId})`).join('; ').replace(/"/g, '""')}"`,
+      `"${(r.teamMembers || []).map(m => m.name + (m.studentId && m.studentId !== 'N/A' ? ` (${m.studentId})` : '')).join('; ').replace(/"/g, '""')}"`,
       `"${r.createdAt}"`,
       `"${(r.notes || '').replace(/"/g, '""')}"`
     ]);
@@ -2590,11 +2592,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   </span>
                   <div className="space-y-1 text-xs">
                     <p><span className="text-outline">Full Name:</span> <strong className="text-white">{selectedReg.fullName}</strong></p>
-                    <p><span className="text-outline">Student Roll No:</span> <strong className="text-primary">{selectedReg.studentId}</strong></p>
-                    <p><span className="text-outline">University:</span> {selectedReg.universityName}</p>
-                    <p><span className="text-outline">Department:</span> {selectedReg.department} ({selectedReg.academicYear})</p>
+                    <p><span className="text-outline">Roll No / Student ID / CNIC:</span> <strong className="text-primary">{selectedReg.studentId}</strong></p>
+                    <p><span className="text-outline">Institution:</span> {selectedReg.universityName}</p>
+                    <p><span className="text-outline">Department / Discipline / Grade:</span> {selectedReg.department} ({selectedReg.academicYear})</p>
                     <p><span className="text-outline">Email:</span> {selectedReg.emailAddress}</p>
-                    <p><span className="text-outline">Phone/WhatsApp:</span> {selectedReg.phoneNumber}</p>
+                    <p><span className="text-outline">Primary Phone:</span> {selectedReg.phoneNumber}</p>
+                    {selectedReg.alternatePhoneNumber && (
+                      <p><span className="text-outline">Alternate Phone:</span> {selectedReg.alternatePhoneNumber}</p>
+                    )}
                   </div>
                 </div>
 
@@ -2608,7 +2613,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                         {selectedReg.teamMembers.map((tm, idx) => (
                           <div key={idx} className="p-2 bg-surface-container-high rounded border border-outline-variant/20">
                             <span className="font-semibold text-white block">Member 0{tm.memberIndex}: {tm.name}</span>
-                            <span className="text-outline font-code-md text-[11px]">{tm.studentId} {tm.email ? `· ${tm.email}` : ''}</span>
+                            {tm.studentId && tm.studentId !== 'N/A' && (
+                              <span className="text-outline font-code-md text-[11px]">{tm.studentId} {tm.email ? `· ${tm.email}` : ''}</span>
+                            )}
                           </div>
                         ))}
                       </div>

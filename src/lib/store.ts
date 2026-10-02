@@ -1320,6 +1320,7 @@ export function useRegistrations() {
                 department: row.department,
                 academicYear: row.academic_year,
                 phoneNumber: row.phone,
+                alternatePhoneNumber: row.alternate_phone || undefined,
                 emailAddress: row.email,
                 paymentChannel: row.payment_channel,
                 transactionId: row.transaction_id,

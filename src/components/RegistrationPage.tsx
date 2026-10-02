@@ -29,32 +29,23 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ onNavigate, 
   // Participation Model: SOLO vs TEAM
   const [participationModel, setParticipationModel] = useState<ParticipationModel>('SOLO');
 
-  // Form Fields
+  // Form Fields (Empty by default with placeholder texts only)
   const [teamName, setTeamName] = useState('');
-  const [fullName, setFullName] = useState(currentUser?.name || '');
-  const [studentId, setStudentId] = useState(currentUser?.studentId || '');
-  const [universityName, setUniversityName] = useState(currentUser?.university || 'NED University of Eng. & Tech.');
-  const [department, setDepartment] = useState(currentUser?.department || 'Electronic Engineering');
-  const [academicYear, setAcademicYear] = useState('final-year');
-  const [phoneNumber, setPhoneNumber] = useState(currentUser?.phoneNumber || '+92 300 1234567');
-  const [emailAddress, setEmailAddress] = useState(currentUser?.email || '');
+  const [fullName, setFullName] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [universityName, setUniversityName] = useState(''); // Institution Name
+  const [department, setDepartment] = useState('');
+  const [academicYear, setAcademicYear] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [alternatePhoneNumber, setAlternatePhoneNumber] = useState('');
+  const [emailAddress, setEmailAddress] = useState('');
 
-  // Secondary Team Members
-  const [member2Name, setMember2Name] = useState('');
-  const [member2Id, setMember2Id] = useState('');
-  const [member2Email, setMember2Email] = useState('');
-
-  const [member3Name, setMember3Name] = useState('');
-  const [member3Id, setMember3Id] = useState('');
-  const [member3Email, setMember3Email] = useState('');
-
-  const [member4Name, setMember4Name] = useState('');
-  const [member4Id, setMember4Id] = useState('');
-  const [member4Email, setMember4Email] = useState('');
+  // Teammates state (for team-based competitions)
+  const [numTeammates, setNumTeammates] = useState<number | ''>('');
+  const [teammateNames, setTeammateNames] = useState<string[]>([]);
 
   // Payment Confirmation
   const [paymentChannel, setPaymentChannel] = useState('');
-  const [transactionId, setTransactionId] = useState('');
   const [receiptUrl, setReceiptUrl] = useState('');
   const [receiptFileName, setReceiptFileName] = useState('');
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
@@ -69,6 +60,43 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ onNavigate, 
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamic Teammate constraints based on selected track
+  const maxAllowedTeammates = useMemo(() => {
+    return Math.max(1, (selectedCompetition?.maxMembers || 4) - 1);
+  }, [selectedCompetition]);
+
+  const minAllowedTeammates = useMemo(() => {
+    return Math.max(1, Math.min(maxAllowedTeammates, (selectedCompetition?.minMembers || 2) - 1));
+  }, [selectedCompetition, maxAllowedTeammates]);
+
+  const teammateCountOptions = useMemo(() => {
+    const opts: number[] = [];
+    for (let i = minAllowedTeammates; i <= maxAllowedTeammates; i++) {
+      opts.push(i);
+    }
+    return opts;
+  }, [minAllowedTeammates, maxAllowedTeammates]);
+
+  const handleTeammateCountChange = (count: number) => {
+    setNumTeammates(count);
+    setTeammateNames(prev => {
+      const arr = [...prev];
+      if (arr.length < count) {
+        while (arr.length < count) arr.push('');
+      } else {
+        arr.length = count;
+      }
+      return arr;
+    });
+  };
+
+  // Adjust teammate count if active competition changes and count exceeds track max
+  useEffect(() => {
+    if (typeof numTeammates === 'number' && numTeammates > maxAllowedTeammates) {
+      handleTeammateCountChange(maxAllowedTeammates);
+    }
+  }, [maxAllowedTeammates, numTeammates]);
 
   // Sync with preselectedTrackSlug if passed
   useEffect(() => {
@@ -100,13 +128,13 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ onNavigate, 
     }
   }, [selectedCompetition, participationModel]);
 
-  // Handle Receipt Upload (validates size < 5MB and converts file to data URL)
+  // Handle Receipt Upload (validates size < 2MB and converts file to data URL)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setFileError('The selected file exceeds 5MB. Please upload an image under 5MB.');
+    if (file.size > 2 * 1024 * 1024) {
+      setFileError('The selected file exceeds 2MB. Please upload an image or PDF under 2MB.');
       return;
     }
 
@@ -155,23 +183,22 @@ DATE LODGED        : ${new Date().toLocaleString()}
 COMPETITION TRACK  : ${selectedCompetition?.title || 'Competition Track'}
 CATEGORY           : ${selectedCompetition?.category}
 PARTICIPATION      : ${participationModel}
-TEAM NAME          : ${teamName || fullName}
+TEAM NAME          : ${participationModel === 'TEAM' ? (teamName || `${fullName}'s Squad`) : 'Individual Entry'}
 PRIMARY CANDIDATE  : ${fullName}
-STUDENT ROLL NO    : ${studentId}
-UNIVERSITY         : ${universityName}
-DEPARTMENT         : ${department}
+ROLL NO / ID / CNIC: ${studentId}
+INSTITUTION NAME   : ${universityName}
+DEPARTMENT / GROUP : ${department}
 ACADEMIC YEAR      : ${academicYear}
-CONTACT PHONE      : ${phoneNumber}
-EMAIL ADDRESS      : ${emailAddress}
-
-PAYMENT METHOD     : ${paymentChannel.toUpperCase()}
-TRANSACTION ID     : ${transactionId}
+PRIMARY PHONE      : ${phoneNumber}
+ALTERNATE PHONE    : ${alternatePhoneNumber || 'N/A'}
+PRIMARY EMAIL      : ${emailAddress}
+${participationModel === 'TEAM' && teammateNames.length > 0 ? `TEAMMATES          : ${teammateNames.filter(Boolean).join(', ')}\n` : ''}PAYMENT METHOD     : ${paymentChannel.toUpperCase()}
 ASSESSED FEE       : PKR ${calculatedFee.toLocaleString()}
 STATUS             : PENDING DESK VERIFICATION
 
 IMPORTANT INSTRUCTIONS:
 1. Please retain this token for on-site accreditation.
-2. Present your original university student ID card upon entry.
+2. Present your original student ID card / CNIC upon entry.
 3. Event venue: NED University of Engineering & Technology, Main Campus.
 For queries: spec@neduet.edu.pk | +92 21 99261261
 =====================================================`;
@@ -191,8 +218,38 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
     e.preventDefault();
     setFormError('');
 
-    if (!fullName.trim() || !studentId.trim() || !emailAddress.trim() || !phoneNumber.trim()) {
-      setFormError('Please complete all mandatory participant fields (Full Name, Student Roll No, Email, Phone).');
+    if (
+      !fullName.trim() ||
+      !studentId.trim() ||
+      !universityName.trim() ||
+      !department.trim() ||
+      !academicYear.trim() ||
+      !emailAddress.trim() ||
+      !phoneNumber.trim()
+    ) {
+      setFormError('Please complete all mandatory participant fields (Full Name, Roll no. / Student ID no. / CNIC, Institution Name, Department, Academic Year, Primary Phone, Email).');
+      return;
+    }
+
+    if (participationModel === 'TEAM') {
+      if (!teamName.trim()) {
+        setFormError('Please enter a team name for your squad.');
+        return;
+      }
+      if (!numTeammates || numTeammates < 1) {
+        setFormError('Please select the number of teammates on your team.');
+        return;
+      }
+      for (let i = 0; i < numTeammates; i++) {
+        if (!teammateNames[i] || !teammateNames[i].trim()) {
+          setFormError(`Please enter the full name for Teammate ${i + 1}.`);
+          return;
+        }
+      }
+    }
+
+    if (!paymentChannel) {
+      setFormError('Please select a payment channel.');
       return;
     }
 
@@ -208,50 +265,33 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
     setSubmitting(true);
 
     const teamMembersInput = [];
-    if (participationModel === 'TEAM') {
-      if (member2Name.trim()) {
+    if (participationModel === 'TEAM' && typeof numTeammates === 'number') {
+      for (let i = 0; i < numTeammates; i++) {
         teamMembersInput.push({
-          memberNumber: 2,
-          fullName: member2Name,
-          studentId: member2Id || 'N/A',
-          email: member2Email || undefined
-        });
-      }
-      if (member3Name.trim()) {
-        teamMembersInput.push({
-          memberNumber: 3,
-          fullName: member3Name,
-          studentId: member3Id || 'N/A',
-          email: member3Email || undefined
-        });
-      }
-      if (member4Name.trim()) {
-        teamMembersInput.push({
-          memberNumber: 4,
-          fullName: member4Name,
-          studentId: member4Id || 'N/A',
-          email: member4Email || undefined
+          memberNumber: i + 2,
+          fullName: teammateNames[i].trim(),
+          studentId: 'N/A',
         });
       }
     }
 
     const res = await createRegistration(
       {
-        userId: currentUser?.id || 'guest',
+        userId: currentUser?.id || `guest-${Date.now()}`,
         competitionId: selectedCompetition.id,
         competitionTitle: selectedCompetition.title,
         competitionCategory: selectedCompetition.category,
         participationModel: participationModel === 'TEAM' ? 'team' : 'individual',
         teamName: participationModel === 'TEAM' ? teamName || `${fullName}'s Squad` : undefined,
-        leaderName: fullName,
-        leaderStudentId: studentId,
-        university: universityName,
-        department,
-        academicYear,
-        phone: phoneNumber,
-        email: emailAddress,
-        paymentChannel: paymentChannel || 'raast',
-        transactionId: transactionId || `TRX-${Date.now().toString().slice(-6)}`,
+        leaderName: fullName.trim(),
+        leaderStudentId: studentId.trim(),
+        university: universityName.trim(),
+        department: department.trim(),
+        academicYear: academicYear.trim(),
+        phone: phoneNumber.trim(),
+        alternatePhone: alternatePhoneNumber.trim() || undefined,
+        email: emailAddress.trim(),
+        paymentChannel,
         calculatedFee,
       },
       teamMembersInput,
@@ -288,7 +328,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
               Registrations Have Not Started Yet
             </h1>
             <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">
-              The departmental registration portal for the Students' Project Exhibition &amp; Competition (SPEC'26) has not commenced yet. All undergraduate engineering and computing students across Pakistan will be able to register squads and select competition tracks starting on the date below.
+              The departmental registration portal for the Students' Project Exhibition &amp; Competition (SPEC'26) has not commenced yet. Students from all institutions across Karachi (schools, colleges, and universities) will be able to register squads and select competition tracks starting on the date below.
             </p>
           </div>
 
@@ -423,125 +463,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
     );
   }
 
-  // -------------------------------------------------------------
-  // NON-LOGGED-IN VIEW (Exact structure from registration_page_non_loggedin_code.html)
-  // -------------------------------------------------------------
-  if (!currentUser) {
-    return (
-      <div className="flex flex-col w-full">
-        <div className="w-full max-w-7xl mx-auto px-6 lg:px-12 py-10 lg:py-16 space-y-16">
-          {/* Streamlined Minimal Hero */}
-          <div className="text-center max-w-3xl mx-auto pt-4 pb-2 space-y-4">
-            <h1 className="font-display-lg text-display-lg font-bold text-on-background tracking-tight">
-              Registration Portal
-            </h1>
-            <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl mx-auto leading-relaxed">
-              Log in or create an account to register your team for SPEC'26. Complete your entry, submit project tracks, and manage team members.
-            </p>
-          </div>
 
-          {/* Centered Modern Authentication Gateway Card */}
-          <div className="max-w-2xl mx-auto bg-surface-container p-8 sm:p-12 text-center space-y-8 shadow-xl relative overflow-hidden rounded-xl border border-outline-variant/30">
-            <div className="w-14 h-14 rounded-full bg-surface-container-high text-primary flex items-center justify-center mx-auto shadow-inner">
-              <span className="material-symbols-outlined text-[28px]">lock_open</span>
-            </div>
-
-            <div className="space-y-3">
-              <h2 className="font-headline-md text-headline-md font-bold text-on-background tracking-tight">
-                Sign In to Get Started
-              </h2>
-              <p className="font-body-md text-body-md text-on-surface-variant max-w-lg mx-auto leading-relaxed">
-                An authenticated participant account is required to register project submissions, select competition tracks, and complete payment verification.
-              </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
-              <button
-                onClick={() => onNavigate('login')}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-primary-container text-on-primary-container font-code-lg text-code-lg font-semibold tracking-wide hover:bg-primary-fixed-dim transition-all active:translate-y-0.5 rounded cursor-pointer"
-              >
-                <span>Log In to Continue</span>
-                <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
-              </button>
-              <button
-                onClick={() => onNavigate('signup')}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-surface-container-high text-on-surface hover:text-primary hover:bg-surface-container-highest font-code-lg text-code-lg font-semibold tracking-wide transition-all active:translate-y-0.5 rounded border border-outline-variant/40 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">person_add</span>
-                <span>Create Account</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Streamlined Minimal 5-Step Pipeline Preview */}
-          <div className="max-w-4xl mx-auto pt-6 space-y-6">
-            <div className="text-center space-y-1">
-              <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest">
-                Registration Workflow
-              </span>
-              <h3 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-                5-Step Easy Submission Pipeline
-              </h3>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2">
-              <div className="bg-surface-container p-4 text-center space-y-1.5 rounded border border-outline-variant/20">
-                <span className="font-code-md text-code-md text-primary font-semibold block">01</span>
-                <p className="font-headline-sm text-[14px] font-semibold text-on-surface">Track Selection</p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">Hardware &amp; Software</p>
-              </div>
-              <div className="bg-surface-container p-4 text-center space-y-1.5 rounded border border-outline-variant/20">
-                <span className="font-code-md text-code-md text-primary font-semibold block">02</span>
-                <p className="font-headline-sm text-[14px] font-semibold text-on-surface">Participation Model</p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">Solo or Squad</p>
-              </div>
-              <div className="bg-surface-container p-4 text-center space-y-1.5 rounded border border-outline-variant/20">
-                <span className="font-code-md text-code-md text-primary font-semibold block">03</span>
-                <p className="font-headline-sm text-[14px] font-semibold text-on-surface">Participant Details</p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">Member &amp; ID Records</p>
-              </div>
-              <div className="bg-surface-container p-4 text-center space-y-1.5 rounded border border-outline-variant/20">
-                <span className="font-code-md text-code-md text-primary font-semibold block">04</span>
-                <p className="font-headline-sm text-[14px] font-semibold text-on-surface">Payment Slip</p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">Fee Confirmation</p>
-              </div>
-              <div className="bg-surface-container p-4 text-center space-y-1.5 rounded border border-outline-variant/20">
-                <span className="font-code-md text-code-md text-primary font-semibold block">05</span>
-                <p className="font-headline-sm text-[14px] font-semibold text-on-surface">Complete</p>
-                <p className="font-body-sm text-[12px] text-on-surface-variant">Pass &amp; Badge Issued</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Streamlined Compact Support Row */}
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-            <div className="bg-surface-container p-6 space-y-3 rounded-xl border border-outline-variant/30">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary text-[22px]">support_agent</span>
-                <h4 className="font-headline-sm text-[16px] text-on-surface font-semibold">Need Help Registering?</h4>
-              </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-                Have queries about team eligibility or institutional affiliation? Contact our registration desk at{' '}
-                <a className="text-primary hover:underline font-code-md text-code-md" href="mailto:spec@neduet.edu.pk">
-                  spec@neduet.edu.pk
-                </a>.
-              </p>
-            </div>
-
-            <div className="bg-surface-container p-6 space-y-3 rounded-xl border border-outline-variant/30">
-              <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-primary text-[22px]">rule</span>
-                <h4 className="font-headline-sm text-[16px] text-on-surface font-semibold">Eligibility Criteria</h4>
-              </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
-                Open to all undergraduate and graduate students from accredited institutions across Pakistan. Valid student ID required during event check-in.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // -------------------------------------------------------------
   // SUCCESS VIEW: Rendered when registration is submitted
@@ -639,7 +561,20 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
               setSubmittedRegId(null);
               setReceiptUrl('');
               setReceiptFileName('');
-              setTransactionId('');
+              setReceiptFile(null);
+              setFullName('');
+              setStudentId('');
+              setUniversityName('');
+              setDepartment('');
+              setAcademicYear('');
+              setPhoneNumber('');
+              setAlternatePhoneNumber('');
+              setEmailAddress('');
+              setTeamName('');
+              setNumTeammates('');
+              setTeammateNames([]);
+              setPaymentChannel('');
+              setAgreeRules(false);
             }}
             className="px-5 py-2.5 rounded bg-surface-container text-on-surface hover:text-white border border-outline-variant/40 font-code-md text-xs uppercase tracking-wider font-semibold transition-colors cursor-pointer"
           >
@@ -657,7 +592,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
   }
 
   // -------------------------------------------------------------
-  // FULL LOGGED-IN REGISTRATION FORM (Exact structure from registration_page_code.html)
+  // REGISTRATION FORM
   // -------------------------------------------------------------
   return (
     <div className="max-w-5xl mx-auto px-6 lg:px-8 py-12 md:py-20 w-full">
@@ -677,7 +612,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
           Register for SPEC’26
         </h1>
         <p className="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
-          Submit your team or individual details for the Students’ Project Exhibition and Competition. Registrations are open to undergraduate engineering and computing students across Pakistan.
+          Submit your team or individual details for the Students’ Project Exhibition and Competition. Registrations are open to participants from all institutions across Karachi (schools, colleges, and universities).
         </p>
       </div>
 
@@ -851,6 +786,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Full Name */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="full-name">
                   Full Name <span className="text-error">*</span>
@@ -859,7 +795,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="full-name"
                   name="full_name"
-                  placeholder="Muhammad Ali"
+                  placeholder="e.g. Muhammad Ali"
                   required
                   type="text"
                   value={fullName}
@@ -867,15 +803,16 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 />
               </div>
 
+              {/* Roll no. / Student ID no. / CNIC */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="student-id">
-                  Roll No. / University Student ID <span className="text-error">*</span>
+                  Roll no. / Student ID no. / CNIC <span className="text-error">*</span>
                 </label>
                 <input
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="student-id"
                   name="student_id"
-                  placeholder="ES-042/2022"
+                  placeholder="e.g. 42101-1234567-1 or Roll No / Student ID"
                   required
                   type="text"
                   value={studentId}
@@ -883,15 +820,16 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 />
               </div>
 
+              {/* Institution Name */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="university-name">
-                  University / Institution Name <span className="text-error">*</span>
+                  Institution Name <span className="text-error">*</span>
                 </label>
                 <input
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="university-name"
                   name="university_name"
-                  placeholder="NED University of Eng. & Tech."
+                  placeholder="e.g. NED University, DJ Sindh Govt Science College, Karachi Grammar School"
                   required
                   type="text"
                   value={universityName}
@@ -899,15 +837,16 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 />
               </div>
 
+              {/* Department / Discipline / Grade */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="department">
-                  Department / Discipline <span className="text-error">*</span>
+                  Department / Discipline / Grade <span className="text-error">*</span>
                 </label>
                 <input
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="department"
                   name="department"
-                  placeholder="Electronic Engineering"
+                  placeholder="e.g. Electronic Engineering, Pre-Engineering, Class 10"
                   required
                   type="text"
                   value={department}
@@ -915,9 +854,10 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 />
               </div>
 
+              {/* Academic Year / Class */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="academic-year">
-                  Academic Year / Semester <span className="text-error">*</span>
+                  Academic Year / Class <span className="text-error">*</span>
                 </label>
                 <div className="relative">
                   <select
@@ -928,10 +868,14 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                     value={academicYear}
                     onChange={(e) => setAcademicYear(e.target.value)}
                   >
-                    <option value="1st-year">First Year (Semesters 1-2)</option>
-                    <option value="2nd-year">Second Year (Semesters 3-4)</option>
-                    <option value="3rd-year">Third Year (Semesters 5-6)</option>
-                    <option value="final-year">Final Year (Semesters 7-8)</option>
+                    <option value="" disabled>Select academic level / year...</option>
+                    <option value="Matric / O-Level">Matric / O-Level</option>
+                    <option value="Intermediate / A-Level">Intermediate / A-Level</option>
+                    <option value="First Year (Semesters 1-2)">First Year (Semesters 1-2)</option>
+                    <option value="Second Year (Semesters 3-4)">Second Year (Semesters 3-4)</option>
+                    <option value="Third Year (Semesters 5-6)">Third Year (Semesters 5-6)</option>
+                    <option value="Final Year (Semesters 7-8)">Final Year (Semesters 7-8)</option>
+                    <option value="Postgraduate / Graduate">Postgraduate / Graduate</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-on-surface-variant">
                     <span className="material-symbols-outlined text-[20px]">expand_more</span>
@@ -939,15 +883,16 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 </div>
               </div>
 
+              {/* Primary Phone / WhatsApp */}
               <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="phone-number">
-                  Phone / WhatsApp Number <span className="text-error">*</span>
+                  Primary Phone / WhatsApp Number <span className="text-error">*</span>
                 </label>
                 <input
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="phone-number"
                   name="phone_number"
-                  placeholder="+92 300 1234567"
+                  placeholder="e.g. +92 300 1234567"
                   required
                   type="tel"
                   value={phoneNumber}
@@ -955,15 +900,32 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 />
               </div>
 
-              <div className="md:col-span-2 space-y-2">
+              {/* Alternate Phone Number */}
+              <div className="space-y-2">
+                <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="alternate-phone-number">
+                  Alternate Phone Number
+                </label>
+                <input
+                  className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
+                  id="alternate-phone-number"
+                  name="alternate_phone_number"
+                  placeholder="e.g. +92 321 9876543"
+                  type="tel"
+                  value={alternatePhoneNumber}
+                  onChange={(e) => setAlternatePhoneNumber(e.target.value)}
+                />
+              </div>
+
+              {/* Primary Email Address */}
+              <div className="space-y-2">
                 <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="email-address">
-                  Institutional or Primary Email Address <span className="text-error">*</span>
+                  Primary Email Address <span className="text-error">*</span>
                 </label>
                 <input
                   className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
                   id="email-address"
                   name="email_address"
-                  placeholder="m.ali@cloud.neduet.edu.pk"
+                  placeholder="e.g. participant@example.com"
                   required
                   type="email"
                   value={emailAddress}
@@ -972,110 +934,70 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
               </div>
             </div>
 
-            {/* Secondary Team Members Sub-Grid (Dynamic conditional UI) */}
+            {/* Dynamic Teammates Selection (Conditional for Team Format) */}
             {participationModel === 'TEAM' && (
-              <div className="pt-6 space-y-6 animate-fadeIn">
+              <div className="pt-6 space-y-6 animate-fadeIn border-t border-outline-variant/20 mt-6">
                 <div className="flex items-center gap-2 text-primary font-headline-sm text-headline-sm">
                   <span className="material-symbols-outlined text-[20px]">group</span>
                   <h3>Additional Team Members</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Member 2 */}
-                  <div className="p-4 rounded bg-surface-container border border-outline-variant/30 space-y-3">
-                    <span className="font-label-caps text-label-caps text-secondary uppercase font-semibold">
-                      Member 02 <span className="text-error">*</span>
-                    </span>
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_2_name"
-                      placeholder="Full Name *"
+                {/* Dropdown for Number of Teammates */}
+                <div className="space-y-2 max-w-md">
+                  <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="num-teammates">
+                    Number of Teammates (Excluding Team Lead) <span className="text-error">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors appearance-none cursor-pointer border border-outline-variant/30"
+                      id="num-teammates"
+                      name="num_teammates"
                       required
-                      type="text"
-                      value={member2Name}
-                      onChange={(e) => setMember2Name(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_2_id"
-                      placeholder="Roll No / Student ID *"
-                      required
-                      type="text"
-                      value={member2Id}
-                      onChange={(e) => setMember2Id(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_2_email"
-                      placeholder="Email Address"
-                      type="email"
-                      value={member2Email}
-                      onChange={(e) => setMember2Email(e.target.value)}
-                    />
+                      value={numTeammates}
+                      onChange={(e) => handleTeammateCountChange(parseInt(e.target.value, 10))}
+                    >
+                      <option value="" disabled>Select number of teammates...</option>
+                      {teammateCountOptions.map(cnt => (
+                        <option key={cnt} value={cnt}>
+                          {cnt} {cnt === 1 ? 'Teammate' : 'Teammates'} (Total Squad: {cnt + 1})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-on-surface-variant">
+                      <span className="material-symbols-outlined text-[20px]">expand_more</span>
+                    </div>
                   </div>
-
-                  {/* Member 3 */}
-                  <div className="p-4 rounded bg-surface-container border border-outline-variant/30 space-y-3">
-                    <span className="font-label-caps text-label-caps text-secondary uppercase font-semibold">
-                      Member 03
-                    </span>
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_3_name"
-                      placeholder="Full Name"
-                      type="text"
-                      value={member3Name}
-                      onChange={(e) => setMember3Name(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_3_id"
-                      placeholder="Roll No / Student ID"
-                      type="text"
-                      value={member3Id}
-                      onChange={(e) => setMember3Id(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_3_email"
-                      placeholder="Email Address"
-                      type="email"
-                      value={member3Email}
-                      onChange={(e) => setMember3Email(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Member 4 */}
-                  <div className="p-4 rounded bg-surface-container border border-outline-variant/30 space-y-3">
-                    <span className="font-label-caps text-label-caps text-secondary uppercase font-semibold">
-                      Member 04 (Optional)
-                    </span>
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_4_name"
-                      placeholder="Full Name"
-                      type="text"
-                      value={member4Name}
-                      onChange={(e) => setMember4Name(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_4_id"
-                      placeholder="Roll No / Student ID"
-                      type="text"
-                      value={member4Id}
-                      onChange={(e) => setMember4Id(e.target.value)}
-                    />
-                    <input
-                      className="w-full h-10 px-3 rounded bg-surface-container-high text-on-surface font-body-sm text-body-sm outline-none border border-outline-variant/30"
-                      name="member_4_email"
-                      placeholder="Email Address"
-                      type="email"
-                      value={member4Email}
-                      onChange={(e) => setMember4Email(e.target.value)}
-                    />
-                  </div>
+                  <p className="text-xs text-on-surface-variant font-code-md">
+                    Allowed team size for {selectedCompetition?.title || 'this track'}: {selectedCompetition?.minMembers || 2} to {selectedCompetition?.maxMembers || 4} members (Lead + up to {maxAllowedTeammates} teammates).
+                  </p>
                 </div>
+
+                {/* Dynamically Generated Teammate Name Fields */}
+                {typeof numTeammates === 'number' && numTeammates > 0 && (
+                  <div className="space-y-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {Array.from({ length: numTeammates }).map((_, idx) => (
+                        <div key={idx} className="p-4 rounded bg-surface-container border border-outline-variant/30 space-y-2">
+                          <label className="block font-label-caps text-label-caps text-secondary uppercase font-semibold">
+                            Teammate {idx + 1} Full Name <span className="text-error">*</span>
+                          </label>
+                          <input
+                            className="w-full h-11 px-3 rounded bg-surface-container-high text-on-surface font-body-md text-body-md outline-none border border-outline-variant/30 focus:border-primary-container transition-colors"
+                            placeholder={`e.g. Teammate ${idx + 1} Name`}
+                            required
+                            type="text"
+                            value={teammateNames[idx] || ''}
+                            onChange={(e) => {
+                              const updated = [...teammateNames];
+                              updated[idx] = e.target.value;
+                              setTeammateNames(updated);
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -1108,93 +1030,123 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                     <span className="text-primary font-bold">
                       PKR {calculatedFee.toLocaleString()} ({participationModel === 'SOLO' ? 'Solo Entry' : 'Team Entry'})
                     </span>{' '}
-                    via Raast, direct bank transfer, or digital wallet before final submission.
+                    via direct bank transfer or digital wallet before final submission.
                   </p>
                 </div>
                 <span className="font-label-caps text-label-caps px-2.5 py-1 rounded bg-surface-container-high text-secondary shrink-0 uppercase tracking-wider">
-                  NED ACCT
+                  SPEC 2026
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-outline-variant/20 text-body-sm font-body-sm">
-                <div>
-                  <span className="block text-on-surface-variant text-code-md font-code-md uppercase">
-                    Account Title:
-                  </span>
-                  <span className="font-medium text-on-surface">SPEC 2026 NEDUET</span>
+              {/* Bank & Digital Wallet Account Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-outline-variant/20 text-body-sm font-body-sm">
+                {/* Bank Account */}
+                <div className="p-4 rounded bg-surface-container-high/60 border border-outline-variant/30 space-y-2">
+                  <div className="flex items-center justify-between border-b border-outline-variant/20 pb-2">
+                    <span className="font-label-caps text-xs text-primary uppercase font-bold tracking-wider">
+                      Bank Account Details
+                    </span>
+                    <span className="text-[11px] font-code-md text-secondary">NBP</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <span className="text-on-surface-variant block">Bank Name:</span>
+                      <span className="font-semibold text-white">National Bank of Pakistan</span>
+                    </div>
+                    <div>
+                      <span className="text-on-surface-variant block">Title:</span>
+                      <span className="font-semibold text-white">Chairman Department of Electronic Engineering</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <span className="text-on-surface-variant block">Account No:</span>
+                        <span className="font-code-md text-secondary font-bold text-sm">1063004102712278</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText('1063004102712278')}
+                        className="px-2 py-0.5 rounded bg-surface-container text-primary hover:text-white border border-outline-variant/30 text-[11px] font-code-md transition-colors cursor-pointer"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <span className="text-on-surface-variant block">IBAN No:</span>
+                        <span className="font-code-md text-secondary font-bold text-xs">PK86NBPA1063004102712278</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText('PK86NBPA1063004102712278')}
+                        className="px-2 py-0.5 rounded bg-surface-container text-primary hover:text-white border border-outline-variant/30 text-[11px] font-code-md transition-colors cursor-pointer"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-on-surface-variant text-code-md font-code-md uppercase">
-                    Bank &amp; Branch:
-                  </span>
-                  <span className="font-medium text-on-surface">National Bank of Pakistan (NED Branch)</span>
-                </div>
-                <div>
-                  <span className="block text-on-surface-variant text-code-md font-code-md uppercase">
-                    IBAN / Account No:
-                  </span>
-                  <span className="font-code-md text-code-md text-secondary tracking-wide">
-                    PK18NBPA0123004567890123
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-on-surface-variant text-code-md font-code-md uppercase">
-                    Raast ID / Mobile:
-                  </span>
-                  <span className="font-code-md text-code-md text-primary tracking-wide">
-                    0300-1234567 / spec@raast
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            {/* Payment Input Fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="payment-channel">
-                  Payment Channel / Bank <span className="text-error">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors appearance-none cursor-pointer border border-outline-variant/30"
-                    id="payment-channel"
-                    name="payment_channel"
-                    required
-                    value={paymentChannel}
-                    onChange={(e) => setPaymentChannel(e.target.value)}
-                  >
-                    <option value="" disabled>Select payment method...</option>
-                    <option value="raast">Raast Instant Transfer</option>
-                    <option value="nbp-online">NBP / Online Bank Transfer</option>
-                    <option value="easypaisa">Easypaisa</option>
-                    <option value="jazzcash">JazzCash</option>
-                    <option value="nayapay-sadapay">NayaPay / SadaPay</option>
-                    <option value="cash-desk">Cash Voucher at Department Desk</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-on-surface-variant">
-                    <span className="material-symbols-outlined text-[20px]">expand_more</span>
+                {/* Digital Wallets */}
+                <div className="p-4 rounded bg-surface-container-high/60 border border-outline-variant/30 space-y-2">
+                  <div className="flex items-center justify-between border-b border-outline-variant/20 pb-2">
+                    <span className="font-label-caps text-xs text-primary uppercase font-bold tracking-wider">
+                      Easypaisa / Jazzcash / Nayapay
+                    </span>
+                    <span className="text-[11px] font-code-md text-secondary">Digital Wallets</span>
+                  </div>
+                  <div className="space-y-1.5 text-xs">
+                    <div>
+                      <span className="text-on-surface-variant block">Account Title:</span>
+                      <span className="font-semibold text-white">Abdullah Wasi</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <span className="text-on-surface-variant block">Account Number:</span>
+                        <span className="font-code-md text-primary font-bold text-sm">03448240449</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => navigator.clipboard.writeText('03448240449')}
+                        className="px-2 py-0.5 rounded bg-surface-container text-primary hover:text-white border border-outline-variant/30 text-[11px] font-code-md transition-colors cursor-pointer"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant pt-2 leading-relaxed">
+                      Send the required entry fee to <strong>03448240449</strong> via Easypaisa, Jazzcash, or Nayapay, and upload the payment confirmation screenshot below.
+                    </p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="transaction-id">
-                  Transaction ID / Reference Number <span className="text-error">*</span>
-                </label>
-                <input
-                  className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors border border-outline-variant/30"
-                  id="transaction-id"
-                  name="transaction_id"
-                  placeholder="e.g., TRX-982410842 or Bank Ref No."
+            {/* Payment Input Fields (Payment Channel only, Transaction ID removed) */}
+            <div className="space-y-2 max-w-md">
+              <label className="block font-body-sm text-body-sm font-medium text-on-surface" htmlFor="payment-channel">
+                Payment Channel <span className="text-error">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  className="w-full h-12 px-4 rounded bg-surface-container text-on-surface font-body-md text-body-md focus:bg-surface-container-high outline-none transition-colors appearance-none cursor-pointer border border-outline-variant/30"
+                  id="payment-channel"
+                  name="payment_channel"
                   required
-                  type="text"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                />
+                  value={paymentChannel}
+                  onChange={(e) => setPaymentChannel(e.target.value)}
+                >
+                  <option value="" disabled>Select payment method...</option>
+                  <option value="Bank transfer">Bank transfer</option>
+                  <option value="Easypaisa">Easypaisa</option>
+                  <option value="Jazzcash">Jazzcash</option>
+                  <option value="Nayapay">Nayapay</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[20px]">expand_more</span>
+                </div>
               </div>
             </div>
 
-            {/* Payment Receipt Upload Zone with Supabase Storage Simulation & Live Preview */}
+            {/* Payment Receipt Upload Zone with 2MB Limit & Live Preview */}
             <div className="space-y-2">
               <label className="block font-body-sm text-body-sm font-medium text-on-surface">
                 Payment Voucher / Transaction Screenshot <span className="text-error">*</span>
@@ -1250,7 +1202,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                 >
                   <input
                     ref={fileInputRef}
-                    accept="image/png, image/jpeg, image/jpg, image/webp"
+                    accept="image/png, image/jpeg, image/jpg, image/webp, application/pdf"
                     className="hidden"
                     id="payment-voucher"
                     name="payment_voucher"
@@ -1264,7 +1216,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
                     <span className="text-primary hover:underline">Click to browse</span> or drag and drop voucher
                   </p>
                   <p className="font-code-md text-code-md text-on-surface-variant mt-1">
-                    PNG, JPG, JPEG or WEBP up to 5MB (Clear digital receipt or physical bank stamped slip)
+                    PNG, JPG, JPEG, WEBP or PDF up to 2MB (Clear digital receipt or physical bank deposit slip)
                   </p>
                 </div>
               )}
