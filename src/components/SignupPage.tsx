@@ -202,7 +202,7 @@ export const SignupPage: React.FC<SignupPageProps> = ({ onNavigate, onSuccessRed
             {/* Submit button */}
             <div className="pt-2">
               <button
-                className="w-full inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-primary-fixed-dim text-on-primary-container font-label-caps text-label-caps font-bold uppercase tracking-wider py-3.5 px-6 rounded transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] hover:shadow-[0_0_30px_rgba(0,240,255,0.4)] cursor-pointer"
+                className="w-full inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-primary-fixed-dim text-on-primary-container font-label-caps text-label-caps font-bold uppercase tracking-wider py-3.5 px-6 rounded transition-all shadow-[0_0_20px_rgba(240,117,9,0.25)] hover:shadow-[0_0_30px_rgba(240,117,9,0.4)] cursor-pointer"
                 type="submit"
                 disabled={loading}
               >

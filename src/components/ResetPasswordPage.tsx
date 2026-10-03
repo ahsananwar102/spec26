@@ -191,7 +191,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
                 <button
                   type="submit"
                   disabled={requestLoading}
-                  className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] cursor-pointer disabled:opacity-60"
+                  className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(240,117,9,0.25)] cursor-pointer disabled:opacity-60"
                 >
                   {requestLoading ? (
                     <>
@@ -438,7 +438,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
                   <button
                     type="submit"
                     disabled={resetLoading || newPassword.length < 6 || newPassword !== confirmPassword}
-                    className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(240,117,9,0.25)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {resetLoading ? (
                       <>
@@ -496,7 +496,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('login')}
-                className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] cursor-pointer"
+                className="w-full py-3.5 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(240,117,9,0.25)] cursor-pointer"
               >
                 <span>Proceed to Sign In</span>
                 <span className="material-symbols-outlined text-[18px]">login</span>

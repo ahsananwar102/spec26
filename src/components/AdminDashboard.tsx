@@ -247,7 +247,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       <div className="w-full max-w-md mx-auto px-4 py-16 sm:py-24">
         <div className="bg-surface-container border border-outline-variant/30 rounded-xl p-8 sm:p-10 shadow-2xl space-y-6 relative">
           <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-full bg-primary-container/20 text-primary-container mx-auto flex items-center justify-center border border-primary-container/40 shadow-[0_0_20px_rgba(0,240,255,0.25)]">
+            <div className="w-14 h-14 rounded-full bg-primary-container/20 text-primary-container mx-auto flex items-center justify-center border border-primary-container/40 shadow-[0_0_20px_rgba(240,117,9,0.25)]">
               <span className="material-symbols-outlined text-[30px]">admin_panel_settings</span>
             </div>
             <span className="font-label-caps text-[10px] px-2.5 py-0.5 rounded bg-surface-container-high text-primary tracking-widest uppercase border border-outline-variant/30 inline-block mt-2">
@@ -314,7 +314,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
             <button
               type="submit"
               disabled={adminLoginLoading}
-              className="w-full py-3 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(0,240,255,0.3)] cursor-pointer mt-2"
+              className="w-full py-3 px-4 bg-primary-container text-on-primary-container font-headline-sm text-xs uppercase tracking-wider font-bold rounded flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_20px_rgba(240,117,9,0.3)] cursor-pointer mt-2"
             >
               <span>{adminLoginLoading ? 'Verifying Authorization...' : 'Sign In as Administrator'}</span>
               <span className="material-symbols-outlined text-[18px]">login</span>
@@ -1010,7 +1010,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   setCategoryError(null);
                   setIsCategoryModalOpen(true);
                 }}
-                className="px-4 py-2 bg-primary-container text-on-primary-container rounded text-xs font-semibold uppercase tracking-wider hover:bg-primary-fixed-dim transition-colors flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.2)] cursor-pointer"
+                className="px-4 py-2 bg-primary-container text-on-primary-container rounded text-xs font-semibold uppercase tracking-wider hover:bg-primary-fixed-dim transition-colors flex items-center gap-1.5 shadow-[0_0_15px_rgba(240,117,9,0.2)] cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">add</span>
                 <span>Add Category</span>
@@ -1256,7 +1256,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   }}
                   className={`p-5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
                     timelineForm.registrationPhase === 'OPEN'
-                      ? 'bg-surface-container border-primary-container ring-1 ring-primary-container/50 shadow-[0_0_20px_rgba(0,240,255,0.15)]'
+                      ? 'bg-surface-container border-primary-container ring-1 ring-primary-container/50 shadow-[0_0_20px_rgba(240,117,9,0.15)]'
                       : 'bg-surface-container-lowest border-outline-variant/30 hover:border-outline-variant/60'
                   }`}
                 >
@@ -1509,7 +1509,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       setTimeout(() => setTimelineToast(false), 4000);
                     }
                   }}
-                  className="px-6 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-6 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(240,117,9,0.25)] flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {timelineSaving ? (
                     <>
@@ -1565,7 +1565,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
 
             <button
               onClick={() => setIsAddAdminModalOpen(true)}
-              className="px-4 py-2.5 bg-primary-container text-on-primary-container rounded text-xs font-bold uppercase tracking-wider hover:bg-primary-fixed-dim transition-all flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(0,240,255,0.2)] shrink-0"
+              className="px-4 py-2.5 bg-primary-container text-on-primary-container rounded text-xs font-bold uppercase tracking-wider hover:bg-primary-fixed-dim transition-all flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(240,117,9,0.2)] shrink-0"
             >
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               <span>Add Administrator</span>
@@ -2916,7 +2916,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+                  className="px-5 py-2 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(240,117,9,0.2)]"
                 >
                   <span className="material-symbols-outlined text-[16px]">save</span>
                   <span>{editingCategory ? 'Update Category' : 'Create Category'}</span>

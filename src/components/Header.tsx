@@ -20,6 +20,11 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onNavigate }) => {
             onClick={() => onNavigate('home')}
             className="flex items-center gap-3 group text-left cursor-pointer"
           >
+            <img
+              src="/logo.png"
+              alt="SPEC'26 Logo"
+              className="h-9 w-auto max-h-9 object-contain"
+            />
             <span className="font-headline-sm text-headline-sm font-bold tracking-tight text-primary group-hover:text-primary-container transition-colors">
               SPEC'26
             </span>

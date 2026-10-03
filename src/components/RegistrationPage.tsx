@@ -471,7 +471,7 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
   if (submittedRegId) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-16 text-center space-y-8 animate-fadeIn">
-        <div className="w-20 h-20 rounded-full bg-primary-container/20 text-primary-container mx-auto flex items-center justify-center border border-primary-container/40 shadow-[0_0_30px_rgba(0,240,255,0.2)]">
+        <div className="w-20 h-20 rounded-full bg-primary-container/20 text-primary-container mx-auto flex items-center justify-center border border-primary-container/40 shadow-[0_0_30px_rgba(240,117,9,0.2)]">
           <span className="material-symbols-outlined text-[42px]">check_circle</span>
         </div>
 

@@ -25,8 +25,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <span>NED University of Engineering and Technology, Karachi</span>
           </div>
           <div className="hidden md:flex items-center gap-4 text-xs font-code-md text-on-surface-variant/80">
-            <span>ESTABLISHED ANNUAL PLATFORM</span>
-            <span className="text-outline">·</span>
             {eventSettings.registrationPhase === 'NOT_STARTED' && (
               <span className="text-yellow-400 font-medium">REGISTRATIONS OPENING SOON</span>
             )}
@@ -55,7 +53,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-6 py-6">
             <div className="inline-flex items-center gap-2 text-xs font-code-md text-primary-container uppercase tracking-widest mx-auto px-3 py-1 rounded bg-surface-container-high border border-outline-variant/40">
               <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-              Annual Engineering Symposium &middot; {eventSettings.competitionDates || formatDisplayDate(eventSettings.eventDate)}
+              {eventSettings.competitionDates || formatDisplayDate(eventSettings.eventDate)}
             </div>
 
             <div className="flex flex-col gap-3 items-center">
@@ -85,21 +83,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               >
                 Explore Competitions
               </button>
-            </div>
-
-            <div className="pt-4 flex flex-wrap items-center justify-center gap-8 text-xs text-on-surface-variant font-code-md">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-                <span>{activeCompetitions.length} Technical Tracks</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                <span>Open to All Universities</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
-                <span>Undergraduate Engineering</span>
-              </div>
             </div>
           </div>
         </div>
@@ -151,7 +134,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       {/* About SPEC'26 & 4 Disciplines */}
       <section className="py-24 border-b border-outline-variant/60 bg-surface" id="about">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="max-w-2xl mb-16">
+          <div className="max-w-3xl mb-16">
             <span className="text-xs font-code-md uppercase tracking-widest text-primary-container font-semibold">
               About the Exhibition
             </span>
@@ -159,7 +142,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               What is SPEC’26?
             </h2>
             <p className="text-lg text-on-surface font-normal leading-relaxed">
-              SPEC is the premier annual academic exhibition and symposium organized by the Department of Electronic Engineering at NED University. It brings together undergraduate researchers, engineers, and tinkerers across Pakistan to showcase hardware prototypes, compete, and connect.
+              SPEC is an annual technical competition event organized by the Department of Electronic Engineering at NED University. We bring together students from schools, colleges, and universities across Karachi to build, compete, and put their engineering skills to the test. Whether you are a beginner or an experienced hardware enthusiast, SPEC provides a hands-on arena to solve problems and showcase your technical abilities.
             </p>
           </div>
 
@@ -168,10 +151,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <div className="w-10 h-10 border border-primary-container/30 bg-surface-container flex items-center justify-center text-primary-container mb-6 rounded">
                 <span className="material-symbols-outlined text-xl">memory</span>
               </div>
-              <span className="text-xs font-code-md text-on-surface-variant block mb-1">01 / DISCIPLINE</span>
-              <h3 className="font-display text-lg font-bold text-white mb-2">Embedded &amp; Silicon</h3>
+              <span className="text-xs font-code-md text-primary-container block mb-1">01 / TRACK</span>
+              <h3 className="font-display text-lg font-bold text-white mb-2">Electronics &amp; Circuitry</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Microcontroller architectures, FPGA register-transfer logic, and precision circuit instrumentation.
+                Test your core hardware knowledge through circuit simulation, design challenges, and rapid-fire electronics quizzes.
               </p>
             </div>
 
@@ -179,21 +162,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <div className="w-10 h-10 border border-secondary/30 bg-surface-container flex items-center justify-center text-secondary mb-6 rounded">
                 <span className="material-symbols-outlined text-xl">precision_manufacturing</span>
               </div>
-              <span className="text-xs font-code-md text-on-surface-variant block mb-1">02 / DISCIPLINE</span>
-              <h3 className="font-display text-lg font-bold text-white mb-2">Autonomous Robotics</h3>
+              <span className="text-xs font-code-md text-secondary block mb-1">02 / TRACK</span>
+              <h3 className="font-display text-lg font-bold text-white mb-2">Competitive Robotics</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Tuned PID control loops, optical sensor arrays, and arena-grade mobile robotics.
+                Build, control, and battle arena-ready robots. From high-speed line followers and track races to intense robot wars and robo-soccer, put your mechanical and logic designs to the ultimate test.
               </p>
             </div>
 
             <div className="p-8 border border-outline-variant/70 bg-surface-container-low hover:border-primary-container/40 transition-all rounded">
-              <div className="w-10 h-10 border border-primary-fixed/30 bg-surface-container flex items-center justify-center text-primary-fixed mb-6 rounded">
+              <div className="w-10 h-10 border border-primary-container/30 bg-surface-container flex items-center justify-center text-primary-container mb-6 rounded">
                 <span className="material-symbols-outlined text-xl">terminal</span>
               </div>
-              <span className="text-xs font-code-md text-on-surface-variant block mb-1">03 / DISCIPLINE</span>
-              <h3 className="font-display text-lg font-bold text-white mb-2">Competitive Programming</h3>
+              <span className="text-xs font-code-md text-primary-container block mb-1">03 / TRACK</span>
+              <h3 className="font-display text-lg font-bold text-white mb-2">Software &amp; Coding</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Algorithmic problem-solving, memory-constrained data structures, and time-trial sprint optimization.
+                Race against the clock in speed programming and hackathons to crack algorithmic challenges and build creative software solutions under pressure.
               </p>
             </div>
 
@@ -201,10 +184,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <div className="w-10 h-10 border border-tertiary-fixed-dim/30 bg-surface-container flex items-center justify-center text-tertiary-fixed-dim mb-6 rounded">
                 <span className="material-symbols-outlined text-xl">handyman</span>
               </div>
-              <span className="text-xs font-code-md text-on-surface-variant block mb-1">04 / DISCIPLINE</span>
-              <h3 className="font-display text-lg font-bold text-white mb-2">Hardware Craft &amp; Circuitry</h3>
+              <span className="text-xs font-code-md text-tertiary-fixed-dim block mb-1">04 / TRACK</span>
+              <h3 className="font-display text-lg font-bold text-white mb-2">Hardware Skills</h3>
               <p className="text-sm text-on-surface-variant leading-relaxed">
-                Surface-mount and through-hole soldering discipline, thermal layout design, and PCB assembly.
+                Show off your practical, hands-on engineering skills with fast-paced challenges focused on precise, rapid soldering and physical circuit assembly.
               </p>
             </div>
           </div>

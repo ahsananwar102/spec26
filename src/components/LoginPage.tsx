@@ -140,7 +140,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onSuccessRedir
               )}
 
               <button
-                className="w-full py-3 px-6 bg-primary-container text-on-primary-container font-headline-sm text-headline-sm uppercase tracking-wider font-bold rounded flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_24px_rgba(0,240,255,0.35)] active:scale-[0.99] cursor-pointer mt-2"
+                className="w-full py-3 px-6 bg-primary-container text-on-primary-container font-headline-sm text-headline-sm uppercase tracking-wider font-bold rounded flex items-center justify-center gap-2 hover:bg-primary-fixed-dim transition-all shadow-[0_0_24px_rgba(240,117,9,0.35)] active:scale-[0.99] cursor-pointer mt-2"
                 type="submit"
                 disabled={loading}
               >

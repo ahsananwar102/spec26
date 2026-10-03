@@ -11,6 +11,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-12 border-b border-outline-variant/20">
           <div className="md:col-span-6 space-y-4">
             <div className="flex items-center gap-3">
+              <img
+                src="/logo.png"
+                alt="SPEC'26 Logo"
+                className="h-8 w-auto max-h-8 object-contain"
+              />
               <span className="font-headline-sm text-headline-sm font-bold text-primary">
                 SPEC'26
               </span>
