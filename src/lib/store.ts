@@ -21,14 +21,14 @@ export interface PasswordResetItem {
   createdAt: string;
 }
 
-// Default event configuration
+// Default event configuration (safe fallback until Supabase row resolves)
 const DEFAULT_EVENT_SETTINGS: EventSettings = {
-  registrationPhase: 'OPEN',
-  eventDate: '2026-04-15',
+  registrationPhase: 'NOT_STARTED',
+  eventDate: '2026-10-27',
   registrationStartDate: '2026-03-01',
-  registrationEndDate: '2026-04-10',
-  competitionDates: '15\u201316 April 2026',
-  updatedAt: new Date().toISOString()
+  registrationEndDate: '2026-10-20',
+  competitionDates: '27\u201328 October 2026',
+  updatedAt: '1970-01-01T00:00:00.000Z'
 };
 
 // Initialize LocalStorage with seed data if not present
@@ -56,6 +56,14 @@ function initializeStore() {
   }
   if (!localStorage.getItem(STORAGE_KEYS.EVENT_SETTINGS)) {
     localStorage.setItem(STORAGE_KEYS.EVENT_SETTINGS, JSON.stringify(DEFAULT_EVENT_SETTINGS));
+  } else {
+    // Proactively purge obsolete April mock dates if stored on client device
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.EVENT_SETTINGS) || '{}');
+      if (stored.competitionDates && stored.competitionDates.includes('April')) {
+        localStorage.setItem(STORAGE_KEYS.EVENT_SETTINGS, JSON.stringify(DEFAULT_EVENT_SETTINGS));
+      }
+    } catch {}
   }
 }
 
@@ -192,7 +200,15 @@ export function saveCategories(cats: CategoryItem[]) {
 export function getStoredEventSettings(): EventSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.EVENT_SETTINGS);
-    return raw ? JSON.parse(raw) : DEFAULT_EVENT_SETTINGS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Automatically discard obsolete April placeholder dates from older sessions
+      if (parsed.competitionDates && parsed.competitionDates.includes('April')) {
+        return DEFAULT_EVENT_SETTINGS;
+      }
+      return parsed;
+    }
+    return DEFAULT_EVENT_SETTINGS;
   } catch {
     return DEFAULT_EVENT_SETTINGS;
   }
@@ -203,8 +219,65 @@ export function saveEventSettings(settings: EventSettings) {
   window.dispatchEvent(new Event('spec_event_settings_change'));
 }
 
+let lastAdminLocalSaveTime = 0;
+let eagerSettingsFetchPromise: Promise<EventSettings | null> | null = null;
+
+export async function fetchLiveEventSettingsImmediate(): Promise<EventSettings | null> {
+  if (!supabase || !isSupabaseConfigured) {
+    return null;
+  }
+  if (!eagerSettingsFetchPromise) {
+    eagerSettingsFetchPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from('event_settings')
+          .select('*')
+          .eq('id', 'current')
+          .maybeSingle();
+
+        if (!error && data) {
+          const current = getStoredEventSettings();
+          const mapped: EventSettings = {
+            registrationPhase: (data.registration_phase as RegistrationPhase) || current.registrationPhase,
+            eventDate: data.event_date || current.eventDate,
+            registrationStartDate: data.registration_start_date || current.registrationStartDate,
+            registrationEndDate: data.registration_end_date || current.registrationEndDate,
+            competitionDates: data.competition_dates || current.competitionDates,
+            updatedAt: data.updated_at || current.updatedAt
+          };
+
+          if (Date.now() - lastAdminLocalSaveTime > 4000) {
+            saveEventSettings(mapped);
+          }
+          return mapped;
+        }
+      } catch (err: any) {
+        console.warn('Could not fetch live event_settings from Supabase:', err?.message);
+      } finally {
+        setTimeout(() => {
+          eagerSettingsFetchPromise = null;
+        }, 5000);
+      }
+      return null;
+    })();
+  }
+  return eagerSettingsFetchPromise;
+}
+
+// Kick off eager fetch as soon as store module loads in browser
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    fetchLiveEventSettingsImmediate();
+  }, 0);
+}
+
 export function useEventSettings() {
   const [eventSettings, setEventSettings] = useState<EventSettings>(getStoredEventSettings);
+  const [isLoaded, setIsLoaded] = useState<boolean>(() => {
+    if (!isSupabaseConfigured) return true;
+    const stored = getStoredEventSettings();
+    return stored.updatedAt !== '1970-01-01T00:00:00.000Z' && !stored.competitionDates.includes('April');
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -222,7 +295,7 @@ export function useEventSettings() {
             const current = getStoredEventSettings();
 
             if (!data) {
-              // Row does not exist in Supabase yet. Seed it with stored settings!
+              // Row does not exist in Supabase yet. Seed it with current settings!
               await supabase.from('event_settings').upsert({
                 id: 'current',
                 registration_phase: current.registrationPhase,
@@ -232,6 +305,7 @@ export function useEventSettings() {
                 competition_dates: current.competitionDates,
                 updated_at: new Date().toISOString()
               }, { onConflict: 'id' });
+              setIsLoaded(true);
               return;
             }
 
@@ -244,27 +318,28 @@ export function useEventSettings() {
               updatedAt: data.updated_at || current.updatedAt
             };
 
-            // Deep equality check: only trigger updates if fields have genuinely changed
-            const hasChanged =
-              current.registrationPhase !== mapped.registrationPhase ||
-              current.eventDate !== mapped.eventDate ||
-              current.registrationStartDate !== mapped.registrationStartDate ||
-              current.registrationEndDate !== mapped.registrationEndDate ||
-              current.competitionDates !== mapped.competitionDates;
+            // If an administrator on THIS specific browser tab saved settings within the last 4 seconds,
+            // don't overwrite local form state. Otherwise, immediately apply database state!
+            if (Date.now() - lastAdminLocalSaveTime > 4000) {
+              const hasChanged =
+                current.registrationPhase !== mapped.registrationPhase ||
+                current.eventDate !== mapped.eventDate ||
+                current.registrationStartDate !== mapped.registrationStartDate ||
+                current.registrationEndDate !== mapped.registrationEndDate ||
+                current.competitionDates !== mapped.competitionDates;
 
-            if (hasChanged) {
-              const localTime = new Date(current.updatedAt || 0).getTime();
-              const remoteTime = new Date(data.updated_at || 0).getTime();
-              // Prevent older remote response from blowing away a recent local update
-              if (remoteTime >= localTime || isNaN(localTime) || (Date.now() - localTime > 15000)) {
+              if (hasChanged) {
                 saveEventSettings(mapped);
                 setEventSettings(mapped);
               }
             }
+            setIsLoaded(true);
           }
         } catch (err: any) {
           console.warn('Could not fetch live event_settings from Supabase:', err?.message);
         }
+      } else if (isMounted) {
+        setIsLoaded(true);
       }
     };
 
@@ -284,6 +359,7 @@ export function useEventSettings() {
         }
         return fresh;
       });
+      setIsLoaded(true);
     };
     window.addEventListener('spec_event_settings_change', handleSettingsChange);
 
@@ -298,6 +374,7 @@ export function useEventSettings() {
   }, []);
 
   const updateEventSettings = async (updates: Partial<EventSettings>): Promise<{ success: boolean; error?: string }> => {
+    lastAdminLocalSaveTime = Date.now();
     const current = getStoredEventSettings();
     const updated: EventSettings = {
       ...current,
@@ -306,10 +383,10 @@ export function useEventSettings() {
     };
 
     // Sanitize dates to prevent Postgres syntax error (e.g. invalid date syntax "")
-    if (!updated.eventDate) updated.eventDate = current.eventDate || '2026-04-15';
+    if (!updated.eventDate) updated.eventDate = current.eventDate || '2026-10-27';
     if (!updated.registrationStartDate) updated.registrationStartDate = current.registrationStartDate || '2026-03-01';
-    if (!updated.registrationEndDate) updated.registrationEndDate = current.registrationEndDate || '2026-04-10';
-    if (!updated.competitionDates) updated.competitionDates = current.competitionDates || '15–16 April 2026';
+    if (!updated.registrationEndDate) updated.registrationEndDate = current.registrationEndDate || '2026-10-20';
+    if (!updated.competitionDates) updated.competitionDates = current.competitionDates || '27–28 October 2026';
 
     saveEventSettings(updated);
     setEventSettings(updated);
@@ -344,7 +421,7 @@ export function useEventSettings() {
     await updateEventSettings({ registrationPhase: phase });
   };
 
-  return { eventSettings, updateEventSettings, setRegistrationPhase };
+  return { eventSettings, updateEventSettings, setRegistrationPhase, isLoaded };
 }
 
 export function formatDisplayDate(dateStr?: string): string {

@@ -562,10 +562,10 @@ export async function updateEventSettings(settings: EventSettings): Promise<{
         .upsert({
           id: 'current',
           registration_phase: settings.registrationPhase,
-          event_date: settings.eventDate || current.eventDate || '2026-04-15',
+          event_date: settings.eventDate || current.eventDate || '2026-10-27',
           registration_start_date: settings.registrationStartDate || current.registrationStartDate || '2026-03-01',
-          registration_end_date: settings.registrationEndDate || current.registrationEndDate || '2026-04-10',
-          competition_dates: settings.competitionDates || current.competitionDates || '15–16 April 2026',
+          registration_end_date: settings.registrationEndDate || current.registrationEndDate || '2026-10-20',
+          competition_dates: settings.competitionDates || current.competitionDates || '27–28 October 2026',
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 

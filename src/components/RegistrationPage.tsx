@@ -12,7 +12,7 @@ export const RegistrationPage: React.FC<RegistrationPageProps> = ({ onNavigate, 
   const { currentUser } = useAuth();
   const { competitions } = useCompetitions();
   const { addRegistration } = useRegistrations();
-  const { eventSettings } = useEventSettings();
+  const { eventSettings, isLoaded } = useEventSettings();
 
   const activeCompetitions = useMemo(() => {
     return competitions.filter(c => c.isActive);
@@ -305,6 +305,28 @@ For queries: spec@neduet.edu.pk | +92 21 99261261
       setFormError('Registration submission error: ' + (res.error || 'Unknown error occurred. Please check network.'));
     }
   };
+
+  // -------------------------------------------------------------
+  // COLD DEVICE FIRST-LOAD SYNC STATE
+  // -------------------------------------------------------------
+  if (!isLoaded && eventSettings.updatedAt === '1970-01-01T00:00:00.000Z') {
+    return (
+      <div className="flex flex-col w-full max-w-5xl mx-auto px-6 lg:px-8 py-28 items-center justify-center space-y-4 animate-fadeIn">
+        <div className="relative flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full border-2 border-primary-container/20 border-t-primary-container animate-spin"></div>
+          <div className="absolute w-2 h-2 rounded-full bg-primary-container"></div>
+        </div>
+        <div className="text-center space-y-1">
+          <span className="font-code-md text-xs text-primary-container tracking-wider uppercase block">
+            Verifying Registration Status
+          </span>
+          <p className="text-xs text-on-surface-variant font-body-sm">
+            Communicating with Department database...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // -------------------------------------------------------------
   // REGISTRATIONS ABOUT TO START VIEW (Dynamic Admin Setting)

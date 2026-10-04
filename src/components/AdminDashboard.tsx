@@ -1322,7 +1322,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. 15–16 April 2026"
+                  placeholder="e.g. 27–28 October 2026"
                   value={timelineForm.competitionDates}
                   onChange={(e) => {
                     setIsTimelineDirty(true);

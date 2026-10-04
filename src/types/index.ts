@@ -25,7 +25,7 @@ export interface EventSettings {
   eventDate: string;           // ISO date string for the event day(s)
   registrationStartDate: string; // ISO date string
   registrationEndDate: string;   // ISO date string
-  competitionDates: string;      // Free text like "15–16 April 2026"
+  competitionDates: string;      // Free text like "27–28 October 2026"
   updatedAt: string;
 }
 
