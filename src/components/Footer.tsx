@@ -86,31 +86,51 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <span className="font-label-caps text-label-caps text-secondary uppercase tracking-widest block">
               Inquiries
             </span>
-            <div className="space-y-2 text-on-surface-variant font-body-sm text-body-sm">
-              <p className="text-on-surface">spec@neduet.edu.pk</p>
-              <p>+92 (21) 99261261-8</p>
+            <div className="space-y-1.5 text-on-surface-variant font-body-sm text-body-sm">
+              <a
+                href="mailto:ahsananwar1021@gmail.com"
+                className="text-on-surface hover:text-primary transition-colors block break-all"
+              >
+                ahsananwar1021@gmail.com
+              </a>
+              <p className="font-code-md text-xs text-on-surface-variant">0331-0095953 / 0327-3125616</p>
             </div>
             <div className="pt-2 flex items-center gap-3 text-on-surface-variant">
-              <button
+              <a
+                href="mailto:ahsananwar1021@gmail.com"
                 aria-label="Email organizers"
-                onClick={() => onNavigate('contact')}
                 className="w-8 h-8 rounded border border-outline-variant/40 flex items-center justify-center hover:text-primary hover:border-primary transition-colors cursor-pointer"
+                title="Email: ahsananwar1021@gmail.com"
               >
                 <span className="material-symbols-outlined text-[16px]">mail</span>
-              </button>
+              </a>
+              <a
+                href="https://www.instagram.com/spec.ned/"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Instagram Page"
+                className="w-8 h-8 rounded border border-outline-variant/40 flex items-center justify-center hover:text-primary hover:border-primary transition-colors cursor-pointer"
+                title="Instagram @spec.ned"
+              >
+                <span className="material-symbols-outlined text-[16px]">tag</span>
+              </a>
+              <a
+                href="https://maps.app.goo.gl/r8ybJc48AtRFzLDF8"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Venue Location on Google Maps"
+                className="w-8 h-8 rounded border border-outline-variant/40 flex items-center justify-center hover:text-primary hover:border-primary transition-colors cursor-pointer"
+                title="NED University in Google Maps"
+              >
+                <span className="material-symbols-outlined text-[16px]">location_on</span>
+              </a>
               <button
                 aria-label="Official Documentation"
                 onClick={() => onNavigate('guidelines')}
                 className="w-8 h-8 rounded border border-outline-variant/40 flex items-center justify-center hover:text-primary hover:border-primary transition-colors cursor-pointer"
+                title="Guidelines & Directives"
               >
                 <span className="material-symbols-outlined text-[16px]">description</span>
-              </button>
-              <button
-                aria-label="Venue Location"
-                onClick={() => onNavigate('contact')}
-                className="w-8 h-8 rounded border border-outline-variant/40 flex items-center justify-center hover:text-primary hover:border-primary transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[16px]">location_on</span>
               </button>
             </div>
           </div>

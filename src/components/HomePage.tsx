@@ -119,13 +119,13 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               <span className="text-xs text-on-surface-variant">NED University of Engg &amp; Tech</span>
             </div>
 
-            {/* Competitions */}
+            {/* Prize Pool */}
             <div className="pt-4 md:pt-0 md:px-6 flex flex-col gap-1.5">
-              <span className="text-xs font-code-md uppercase tracking-wider text-on-surface-variant">Competitions</span>
+              <span className="text-xs font-code-md uppercase tracking-wider text-on-surface-variant">Prize Pool</span>
               <div className="font-display text-2xl font-bold text-primary-container">
-                {activeCompetitions.length} Competition Tracks
+                PKR 100,000+
               </div>
-              <span className="text-xs text-on-surface-variant">Across {categories.length} Engineering Streams</span>
+              <span className="text-xs text-on-surface-variant">Cash Prizes &amp; Awards Across Tracks</span>
             </div>
           </div>
         </div>

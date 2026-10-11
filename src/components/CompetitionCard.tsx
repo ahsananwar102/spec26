@@ -10,6 +10,7 @@ interface CompetitionCardProps {
 export const CompetitionCard: React.FC<CompetitionCardProps> = ({ competition, onSelectTrack }) => {
   const { eventSettings } = useEventSettings();
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [rulebookNotice, setRulebookNotice] = useState<string | null>(null);
 
   const getFormatDisplay = (comp: Competition) => {
     if (comp.format === 'SOLO') {
@@ -96,7 +97,7 @@ export const CompetitionCard: React.FC<CompetitionCardProps> = ({ competition, o
           className="w-full flex items-center justify-between cursor-pointer text-body-sm font-medium text-primary hover:text-primary-container py-1 transition-colors select-none text-left"
         >
           <span className="font-label-caps uppercase tracking-wider text-label-caps">
-            Fee &amp; Track Breakdown
+            Rulebook &amp; Track Details
           </span>
           <span
             className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${
@@ -166,18 +167,53 @@ export const CompetitionCard: React.FC<CompetitionCardProps> = ({ competition, o
               </div>
             )}
 
-            {/* Register Action CTA */}
-            <button
-              onClick={() => onSelectTrack(competition.slug)}
-              className="w-full inline-flex items-center justify-between px-4 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim hover:text-on-primary-fixed font-label-caps text-label-caps tracking-wider font-semibold transition-colors mt-2 cursor-pointer"
-            >
-              <span>
-                {eventSettings.registrationPhase === 'NOT_STARTED' ? 'View Opening Info' :
-                 eventSettings.registrationPhase === 'CLOSED' ? 'Registration Closed' :
-                 'Register for Track'}
-              </span>
-              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-            </button>
+            {/* Action Buttons: View Rulebook & Register */}
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch gap-2.5">
+              {competition.rulebookUrl && competition.rulebookUrl.trim() ? (
+                <a
+                  href={competition.rulebookUrl.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded bg-surface-container hover:bg-surface-container-high border border-outline-variant/40 text-on-surface hover:text-white font-label-caps text-label-caps tracking-wider font-semibold transition-colors cursor-pointer text-center"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-secondary">menu_book</span>
+                  <span>View Rulebook</span>
+                  <span className="material-symbols-outlined text-[14px] text-outline">open_in_new</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRulebookNotice(`The official rulebook document for "${competition.title}" will be uploaded shortly.`);
+                    setTimeout(() => setRulebookNotice(null), 4000);
+                  }}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded bg-surface-container/70 border border-outline-variant/30 text-on-surface-variant hover:text-white font-label-caps text-label-caps tracking-wider font-semibold transition-colors cursor-pointer text-center"
+                  title="Official rulebook document will be uploaded soon"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-secondary">menu_book</span>
+                  <span>View Rulebook</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onSelectTrack(competition.slug)}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded bg-primary-container text-on-primary-container hover:bg-primary-fixed-dim hover:text-on-primary-fixed font-label-caps text-label-caps tracking-wider font-semibold transition-colors cursor-pointer"
+              >
+                <span>
+                  {eventSettings.registrationPhase === 'NOT_STARTED' ? 'View Opening Info' :
+                   eventSettings.registrationPhase === 'CLOSED' ? 'Registration Closed' :
+                   'Register'}
+                </span>
+                <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+              </button>
+            </div>
+
+            {rulebookNotice && (
+              <p className="text-[11px] text-yellow-300 font-code-md animate-fadeIn pt-1">
+                {rulebookNotice}
+              </p>
+            )}
           </div>
         )}
       </div>

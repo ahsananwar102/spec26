@@ -189,7 +189,7 @@ export const ContactPage: React.FC = () => {
               <div className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <a
                   className="p-4 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors flex flex-col justify-between group"
-                  href="mailto:spec@neduet.edu.pk"
+                  href="mailto:ahsananwar1021@gmail.com"
                 >
                   <div className="w-8 h-8 rounded-md bg-surface-container-highest flex items-center justify-center text-primary group-hover:text-primary-container transition-colors">
                     <span className="material-symbols-outlined text-[18px]">mail</span>
@@ -198,15 +198,15 @@ export const ContactPage: React.FC = () => {
                     <span className="block font-label-caps text-label-caps text-outline uppercase tracking-wider">
                       Email
                     </span>
-                    <span className="block font-code-md text-code-md text-on-surface truncate mt-0.5">
-                      spec@neduet.edu.pk
+                    <span className="block font-code-md text-code-md text-on-surface truncate mt-0.5" title="ahsananwar1021@gmail.com">
+                      ahsananwar1021@gmail.com
                     </span>
                   </div>
                 </a>
 
                 <a
                   className="p-4 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors flex flex-col justify-between group"
-                  href="https://instagram.com"
+                  href="https://www.instagram.com/spec.ned/"
                   rel="noopener noreferrer"
                   target="_blank"
                 >
@@ -218,14 +218,14 @@ export const ContactPage: React.FC = () => {
                       Social
                     </span>
                     <span className="block font-code-md text-code-md text-on-surface truncate mt-0.5">
-                      @spec26_neduet
+                      @spec.ned
                     </span>
                   </div>
                 </a>
 
                 <a
                   className="p-4 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors flex flex-col justify-between group"
-                  href="tel:+922199261261"
+                  href="tel:03310095953"
                 >
                   <div className="w-8 h-8 rounded-md bg-surface-container-highest flex items-center justify-center text-primary group-hover:text-primary-container transition-colors">
                     <span className="material-symbols-outlined text-[18px]">call</span>
@@ -234,8 +234,8 @@ export const ContactPage: React.FC = () => {
                     <span className="block font-label-caps text-label-caps text-outline uppercase tracking-wider">
                       Desk Phone
                     </span>
-                    <span className="block font-code-md text-code-md text-on-surface truncate mt-0.5">
-                      +92 21 99261261
+                    <span className="block font-code-md text-xs text-on-surface truncate mt-0.5" title="0331-0095953 / 0327-3125616">
+                      0331-0095953 / 0327-3125616
                     </span>
                   </div>
                 </a>
@@ -257,12 +257,19 @@ export const ContactPage: React.FC = () => {
               </div>
 
               {/* Campus Visual Representation */}
-              <div className="w-full h-44 bg-surface-container-lowest rounded-lg relative overflow-hidden flex flex-col justify-end p-4 border border-outline-variant/40 bg-tech-grid">
-                <div className="absolute top-3 right-3 font-label-caps text-label-caps px-2.5 py-1 rounded bg-surface-container-high text-primary border border-outline-variant/40">
-                  KARACHI - 75270
+              <a
+                href="https://maps.app.goo.gl/r8ybJc48AtRFzLDF8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-44 bg-surface-container-lowest rounded-lg relative overflow-hidden flex flex-col justify-end p-4 border border-outline-variant/40 bg-tech-grid hover:border-primary-container/60 transition-colors group cursor-pointer block"
+                title="Open NED University Electronic Engineering in Google Maps"
+              >
+                <div className="absolute top-3 right-3 font-label-caps text-[10px] px-2.5 py-1 rounded bg-surface-container-high text-primary border border-outline-variant/40 flex items-center gap-1 group-hover:text-primary-container">
+                  <span>OPEN IN GOOGLE MAPS</span>
+                  <span className="material-symbols-outlined text-[13px]">open_in_new</span>
                 </div>
                 <div className="relative z-10 space-y-1">
-                  <div className="flex items-center gap-2 text-primary font-code-md text-code-md">
+                  <div className="flex items-center gap-2 text-primary font-code-md text-code-md group-hover:text-primary-container">
                     <span className="material-symbols-outlined text-[18px]">pin_drop</span>
                     <span>NED Main Campus, University Road</span>
                   </div>
@@ -270,7 +277,7 @@ export const ContactPage: React.FC = () => {
                     Electronic Engineering Dept. Complex &amp; Main Auditorium
                   </p>
                 </div>
-              </div>
+              </a>
 
               <div className="space-y-4 pt-2">
                 <div className="flex items-start gap-4 p-3 rounded-lg bg-surface-container">

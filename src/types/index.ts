@@ -26,6 +26,8 @@ export interface EventSettings {
   registrationStartDate: string; // ISO date string
   registrationEndDate: string;   // ISO date string
   competitionDates: string;      // Free text like "27–28 October 2026"
+  scheduleUrl?: string;          // Dynamic URL for official schedule document/file
+  registrationFormUrl?: string;  // Dynamic URL for official Google registration form
   updatedAt: string;
 }
 
@@ -57,6 +59,7 @@ export interface Competition {
   teamFee: number;
   keyDeliverables?: string;
   specsSummary?: string;
+  rulebookUrl?: string;          // Dynamic URL for official rulebook document/file
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

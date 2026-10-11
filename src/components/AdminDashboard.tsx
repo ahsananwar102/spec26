@@ -124,7 +124,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     eventDate: eventSettings.eventDate,
     registrationStartDate: eventSettings.registrationStartDate,
     registrationEndDate: eventSettings.registrationEndDate,
-    competitionDates: eventSettings.competitionDates
+    competitionDates: eventSettings.competitionDates,
+    registrationFormUrl: eventSettings.registrationFormUrl || '',
+    scheduleUrl: eventSettings.scheduleUrl || ''
   });
   const [isTimelineDirty, setIsTimelineDirty] = useState(false);
   const [timelineToast, setTimelineToast] = useState(false);
@@ -139,7 +141,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
         eventDate: eventSettings.eventDate,
         registrationStartDate: eventSettings.registrationStartDate,
         registrationEndDate: eventSettings.registrationEndDate,
-        competitionDates: eventSettings.competitionDates
+        competitionDates: eventSettings.competitionDates,
+        registrationFormUrl: eventSettings.registrationFormUrl || '',
+        scheduleUrl: eventSettings.scheduleUrl || ''
       });
     }
   }, [eventSettings, isTimelineDirty]);
@@ -172,6 +176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
     teamFee: 1800,
     keyDeliverables: '',
     specsSummary: '',
+    rulebookUrl: '',
     isActive: true,
   });
 
@@ -363,6 +368,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       teamFee: 1800,
       keyDeliverables: '',
       specsSummary: '',
+      rulebookUrl: '',
       isActive: true,
     });
     setIsCompModalOpen(true);
@@ -382,6 +388,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
       teamFee: comp.teamFee,
       keyDeliverables: comp.keyDeliverables || '',
       specsSummary: comp.specsSummary || '',
+      rulebookUrl: comp.rulebookUrl || '',
       isActive: comp.isActive,
     });
     setIsCompModalOpen(true);
@@ -914,6 +921,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       <p className="text-xs text-on-surface-variant line-clamp-1 max-w-sm mt-0.5">
                         {comp.description}
                       </p>
+                      {comp.rulebookUrl ? (
+                        <a
+                          href={comp.rulebookUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-code-md text-primary-container hover:underline mt-1"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">menu_book</span>
+                          <span>Rulebook Attached</span>
+                          <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+                        </a>
+                      ) : (
+                        <span className="text-[11px] font-code-md text-outline block mt-1">
+                          No rulebook link attached
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-label-caps text-[11px] px-2.5 py-1 rounded bg-surface-container-high text-secondary">
@@ -1395,6 +1418,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   Displayed on the Registration Page when status is set to <strong>"Ended"</strong>. Preview: <strong>{formatDisplayDate(timelineForm.registrationEndDate)}</strong>
                 </p>
               </div>
+
+              {/* Dynamic Google Form URL */}
+              <div className="space-y-2">
+                <label className="block text-xs font-code-md uppercase tracking-wider text-on-surface">
+                  Official Google Registration Form URL *
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://forms.gle/... or https://docs.google.com/forms/..."
+                  value={timelineForm.registrationFormUrl}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, registrationFormUrl: e.target.value }));
+                  }}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container font-code-md"
+                />
+                <p className="text-[11px] text-outline">
+                  Primary CTA destination when participants click <strong>"Register Now"</strong>. Updated dynamically in Supabase across all devices.
+                </p>
+              </div>
+
+              {/* Dynamic Schedule Document URL */}
+              <div className="space-y-2">
+                <label className="block text-xs font-code-md uppercase tracking-wider text-on-surface">
+                  Schedule of Competitions File / Doc URL *
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://drive.google.com/... or https://your-domain.com/schedule.pdf"
+                  value={timelineForm.scheduleUrl}
+                  onChange={(e) => {
+                    setIsTimelineDirty(true);
+                    setTimelineError(null);
+                    setTimelineForm(prev => ({ ...prev, scheduleUrl: e.target.value }));
+                  }}
+                  className="w-full px-4 py-2.5 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container font-code-md"
+                />
+                <p className="text-[11px] text-outline">
+                  Destination for the <strong>"Schedule of Competitions"</strong> button on the Registration Page and Guidelines Page.
+                </p>
+              </div>
             </div>
 
             {/* Live Public Site Preview */}
@@ -1486,7 +1551,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                       eventDate: eventSettings.eventDate,
                       registrationStartDate: eventSettings.registrationStartDate,
                       registrationEndDate: eventSettings.registrationEndDate,
-                      competitionDates: eventSettings.competitionDates
+                      competitionDates: eventSettings.competitionDates,
+                      registrationFormUrl: eventSettings.registrationFormUrl || '',
+                      scheduleUrl: eventSettings.scheduleUrl || ''
                     });
                   }}
                   className="px-4 py-2.5 rounded bg-surface-container hover:bg-surface-container-high text-xs text-on-surface transition-colors cursor-pointer disabled:opacity-50"
@@ -2525,6 +2592,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigate }) =>
                   placeholder="e.g. 1 to 4 Members | Display bench & AC power provided"
                   className="w-full px-3 py-2 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none"
                 />
+              </div>
+
+              {/* Dynamic Rulebook URL */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-code-md text-on-surface-variant uppercase">
+                  Official Rulebook Document URL (File / PDF Link)
+                </label>
+                <input
+                  type="url"
+                  value={compForm.rulebookUrl}
+                  onChange={(e) => setCompForm({ ...compForm, rulebookUrl: e.target.value })}
+                  placeholder="https://drive.google.com/... or https://your-domain.com/rulebooks/drone.pdf"
+                  className="w-full px-3 py-2 bg-surface-container text-white rounded border border-outline-variant/40 text-sm outline-none focus:border-primary-container font-code-md"
+                />
+                <p className="text-[11px] text-outline">
+                  Linked directly on the Competitions page via the <strong>"View Rulebook"</strong> button in this track's card dropdown.
+                </p>
               </div>
 
               <div className="flex items-center gap-2 pt-2">

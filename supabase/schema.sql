@@ -37,10 +37,12 @@ CREATE TABLE IF NOT EXISTS public.categories (
 CREATE TABLE IF NOT EXISTS public.event_settings (
     id VARCHAR(64) PRIMARY KEY DEFAULT 'current',
     registration_phase VARCHAR(32) NOT NULL DEFAULT 'OPEN', -- 'NOT_STARTED', 'OPEN', 'CLOSED'
-    event_date DATE DEFAULT '2026-04-15',
+    event_date DATE DEFAULT '2026-10-27',
     registration_start_date DATE DEFAULT '2026-03-01',
-    registration_end_date DATE DEFAULT '2026-04-10',
-    competition_dates VARCHAR(128) DEFAULT '15–16 April 2026',
+    registration_end_date DATE DEFAULT '2026-10-20',
+    competition_dates VARCHAR(128) DEFAULT '27–28 October 2026',
+    schedule_url TEXT,
+    registration_form_url TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -60,6 +62,7 @@ CREATE TABLE IF NOT EXISTS public.competitions (
     solo_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
     team_fee NUMERIC(10,2) NOT NULL DEFAULT 0,
     rules_summary TEXT,
+    rulebook_url TEXT,
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

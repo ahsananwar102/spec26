@@ -28,6 +28,8 @@ const DEFAULT_EVENT_SETTINGS: EventSettings = {
   registrationStartDate: '2026-03-01',
   registrationEndDate: '2026-10-20',
   competitionDates: '27\u201328 October 2026',
+  scheduleUrl: '',
+  registrationFormUrl: '',
   updatedAt: '1970-01-01T00:00:00.000Z'
 };
 
@@ -243,6 +245,8 @@ export async function fetchLiveEventSettingsImmediate(): Promise<EventSettings |
             registrationStartDate: data.registration_start_date || current.registrationStartDate,
             registrationEndDate: data.registration_end_date || current.registrationEndDate,
             competitionDates: data.competition_dates || current.competitionDates,
+            scheduleUrl: data.schedule_url !== undefined ? (data.schedule_url || '') : (current.scheduleUrl || ''),
+            registrationFormUrl: data.registration_form_url !== undefined ? (data.registration_form_url || '') : (current.registrationFormUrl || ''),
             updatedAt: data.updated_at || current.updatedAt
           };
 
@@ -303,6 +307,8 @@ export function useEventSettings() {
                 registration_start_date: current.registrationStartDate,
                 registration_end_date: current.registrationEndDate,
                 competition_dates: current.competitionDates,
+                schedule_url: current.scheduleUrl || '',
+                registration_form_url: current.registrationFormUrl || '',
                 updated_at: new Date().toISOString()
               }, { onConflict: 'id' });
               setIsLoaded(true);
@@ -315,6 +321,8 @@ export function useEventSettings() {
               registrationStartDate: data.registration_start_date || current.registrationStartDate,
               registrationEndDate: data.registration_end_date || current.registrationEndDate,
               competitionDates: data.competition_dates || current.competitionDates,
+              scheduleUrl: data.schedule_url !== undefined ? (data.schedule_url || '') : (current.scheduleUrl || ''),
+              registrationFormUrl: data.registration_form_url !== undefined ? (data.registration_form_url || '') : (current.registrationFormUrl || ''),
               updatedAt: data.updated_at || current.updatedAt
             };
 
@@ -326,7 +334,9 @@ export function useEventSettings() {
                 current.eventDate !== mapped.eventDate ||
                 current.registrationStartDate !== mapped.registrationStartDate ||
                 current.registrationEndDate !== mapped.registrationEndDate ||
-                current.competitionDates !== mapped.competitionDates;
+                current.competitionDates !== mapped.competitionDates ||
+                current.scheduleUrl !== mapped.scheduleUrl ||
+                current.registrationFormUrl !== mapped.registrationFormUrl;
 
               if (hasChanged) {
                 saveEventSettings(mapped);
@@ -353,7 +363,9 @@ export function useEventSettings() {
           prev.eventDate === fresh.eventDate &&
           prev.registrationStartDate === fresh.registrationStartDate &&
           prev.registrationEndDate === fresh.registrationEndDate &&
-          prev.competitionDates === fresh.competitionDates
+          prev.competitionDates === fresh.competitionDates &&
+          prev.scheduleUrl === fresh.scheduleUrl &&
+          prev.registrationFormUrl === fresh.registrationFormUrl
         ) {
           return prev;
         }
@@ -387,6 +399,8 @@ export function useEventSettings() {
     if (!updated.registrationStartDate) updated.registrationStartDate = current.registrationStartDate || '2026-03-01';
     if (!updated.registrationEndDate) updated.registrationEndDate = current.registrationEndDate || '2026-10-20';
     if (!updated.competitionDates) updated.competitionDates = current.competitionDates || '27–28 October 2026';
+    if (updated.scheduleUrl === undefined) updated.scheduleUrl = current.scheduleUrl || '';
+    if (updated.registrationFormUrl === undefined) updated.registrationFormUrl = current.registrationFormUrl || '';
 
     saveEventSettings(updated);
     setEventSettings(updated);
@@ -402,6 +416,8 @@ export function useEventSettings() {
             registration_start_date: updated.registrationStartDate,
             registration_end_date: updated.registrationEndDate,
             competition_dates: updated.competitionDates,
+            schedule_url: updated.scheduleUrl || '',
+            registration_form_url: updated.registrationFormUrl || '',
             updated_at: updated.updatedAt
           }, { onConflict: 'id' });
 
@@ -999,6 +1015,7 @@ export function useCompetitions() {
               teamFee: Number(row.team_fee || 0),
               keyDeliverables: row.rules_summary,
               specsSummary: row.rules_summary,
+              rulebookUrl: row.rulebook_url || '',
               isActive: row.is_active,
               createdAt: row.created_at,
               updatedAt: row.updated_at
@@ -1030,6 +1047,7 @@ export function useCompetitions() {
       ...data,
       id: 'comp-' + Date.now(),
       orderNum: list.length + 1,
+      rulebookUrl: data.rulebookUrl || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -1051,6 +1069,7 @@ export function useCompetitions() {
           solo_fee: data.soloFee,
           team_fee: data.teamFee,
           rules_summary: data.keyDeliverables || data.specsSummary || '',
+          rulebook_url: data.rulebookUrl || '',
           is_active: data.isActive
         }).select().single();
         if (inserted?.id) {
@@ -1082,6 +1101,7 @@ export function useCompetitions() {
         if (data.teamFee !== undefined) payload.team_fee = data.teamFee;
         if (data.isActive !== undefined) payload.is_active = data.isActive;
         if (data.keyDeliverables !== undefined) payload.rules_summary = data.keyDeliverables;
+        if (data.rulebookUrl !== undefined) payload.rulebook_url = data.rulebookUrl;
 
         await supabase.from('competitions').update(payload).or(`id.eq.${id},slug.eq.${id}`);
       } catch (err) {

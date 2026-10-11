@@ -75,6 +75,7 @@ export async function getCompetitions(category?: string): Promise<{
         teamFee: Number(row.team_fee),
         keyDeliverables: row.rules_summary,
         specsSummary: row.rules_summary,
+        rulebookUrl: row.rulebook_url || '',
         isActive: row.is_active,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -534,6 +535,8 @@ export async function getEventSettings(): Promise<{
           registrationStartDate: data.registration_start_date,
           registrationEndDate: data.registration_end_date,
           competitionDates: data.competition_dates,
+          scheduleUrl: data.schedule_url || '',
+          registrationFormUrl: data.registration_form_url || '',
           updatedAt: data.updated_at
         };
         saveEventSettings(settings);
@@ -566,6 +569,8 @@ export async function updateEventSettings(settings: EventSettings): Promise<{
           registration_start_date: settings.registrationStartDate || current.registrationStartDate || '2026-03-01',
           registration_end_date: settings.registrationEndDate || current.registrationEndDate || '2026-10-20',
           competition_dates: settings.competitionDates || current.competitionDates || '27–28 October 2026',
+          schedule_url: settings.scheduleUrl !== undefined ? settings.scheduleUrl : (current.scheduleUrl || ''),
+          registration_form_url: settings.registrationFormUrl !== undefined ? settings.registrationFormUrl : (current.registrationFormUrl || ''),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
 
